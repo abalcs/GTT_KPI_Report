@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { FileUpload } from './components/FileUpload';
 import { ResultsTable } from './components/ResultsTable';
 import { TeamManagement } from './components/TeamManagement';
+import { TeamComparison } from './components/TeamComparison';
 import type { Team, Metrics, FileUploadState } from './types';
 import { findAgentColumn, countByAgent } from './utils/csvParser';
 import type { CSVRow } from './utils/csvParser';
@@ -289,6 +290,8 @@ function App() {
             onTeamsChange={handleTeamsChange}
             availableAgents={allAgentNames}
           />
+
+          <TeamComparison metrics={metrics} teams={teams} />
 
           <ResultsTable metrics={metrics} teams={teams} />
         </div>
