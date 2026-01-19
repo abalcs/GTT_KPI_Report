@@ -4,7 +4,10 @@ import type { Metrics, Team } from '../types';
 interface ResultsTableProps {
   metrics: Metrics[];
   teams: Team[];
+  seniors: string[];
 }
+
+type SeniorFilter = 'all' | 'seniors' | 'non-seniors';
 
 type SortColumn = 'quotesFromTrips' | 'passthroughsFromTrips' | 'quotesFromPassthroughs' | 'hotPassRate' | null;
 type SortDirection = 'asc' | 'desc';
@@ -14,22 +17,41 @@ const formatPercent = (value: number): string => {
   return `${value.toFixed(1)}%`;
 };
 
-export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams }) => {
+export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seniors }) => {
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [selectedTeam, setSelectedTeam] = useState<string>('all');
+  const [seniorFilter, setSeniorFilter] = useState<SeniorFilter>('all');
 
   const getTeamForAgent = (agentName: string): Team | undefined => {
     return teams.find((team) => team.agentNames.includes(agentName));
   };
 
-  // Filter metrics by selected team
+  const isSenior = (agentName: string): boolean => {
+    return seniors.includes(agentName);
+  };
+
+  // Filter metrics by selected team and senior status
   const filteredMetrics = useMemo(() => {
-    if (selectedTeam === 'all') return metrics;
-    const team = teams.find(t => t.id === selectedTeam);
-    if (!team) return metrics;
-    return metrics.filter(m => team.agentNames.includes(m.agentName));
-  }, [metrics, teams, selectedTeam]);
+    let filtered = metrics;
+
+    // Filter by team
+    if (selectedTeam !== 'all') {
+      const team = teams.find(t => t.id === selectedTeam);
+      if (team) {
+        filtered = filtered.filter(m => team.agentNames.includes(m.agentName));
+      }
+    }
+
+    // Filter by senior status
+    if (seniorFilter === 'seniors') {
+      filtered = filtered.filter(m => seniors.includes(m.agentName));
+    } else if (seniorFilter === 'non-seniors') {
+      filtered = filtered.filter(m => !seniors.includes(m.agentName));
+    }
+
+    return filtered;
+  }, [metrics, teams, selectedTeam, seniors, seniorFilter]);
 
   // Sort metrics
   const sortedMetrics = useMemo(() => {
@@ -133,23 +155,40 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams }) =>
       <div className="px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 flex items-center justify-between">
         <h2 className="text-xl font-bold text-white">KPI Results</h2>
 
-        {teams.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-white text-sm">Filter by Team:</label>
-            <select
-              value={selectedTeam}
-              onChange={(e) => setSelectedTeam(e.target.value)}
-              className="px-3 py-1.5 rounded-lg text-sm bg-white/20 text-white border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
-            >
-              <option value="all" className="text-gray-800">All Agents</option>
-              {teams.map(team => (
-                <option key={team.id} value={team.id} className="text-gray-800">
-                  {team.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="flex items-center gap-4">
+          {seniors.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-white text-sm">Seniority:</label>
+              <select
+                value={seniorFilter}
+                onChange={(e) => setSeniorFilter(e.target.value as SeniorFilter)}
+                className="px-3 py-1.5 rounded-lg text-sm bg-white/20 text-white border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
+              >
+                <option value="all" className="text-gray-800">All Agents</option>
+                <option value="seniors" className="text-gray-800">Seniors Only</option>
+                <option value="non-seniors" className="text-gray-800">Non-Seniors Only</option>
+              </select>
+            </div>
+          )}
+
+          {teams.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-white text-sm">Team:</label>
+              <select
+                value={selectedTeam}
+                onChange={(e) => setSelectedTeam(e.target.value)}
+                className="px-3 py-1.5 rounded-lg text-sm bg-white/20 text-white border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
+              >
+                <option value="all" className="text-gray-800">All Teams</option>
+                {teams.map(team => (
+                  <option key={team.id} value={team.id} className="text-gray-800">
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -215,7 +254,17 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams }) =>
               return (
                 <tr key={m.agentName} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {m.agentName}
+                    <div className="flex items-center gap-2">
+                      {m.agentName}
+                      {isSenior(m.agentName) && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                          <svg className="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                          </svg>
+                          Sr
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {team ? (

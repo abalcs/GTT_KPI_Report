@@ -5,10 +5,11 @@ import { ResultsTable } from './components/ResultsTable';
 import { TeamManagement } from './components/TeamManagement';
 import { TeamComparison } from './components/TeamComparison';
 import { DateRangeFilter } from './components/DateRangeFilter';
+import { SeniorManagement } from './components/SeniorManagement';
 import type { Team, Metrics, FileUploadState } from './types';
 import { findAgentColumn, countByAgent } from './utils/csvParser';
 import type { CSVRow } from './utils/csvParser';
-import { loadTeams, saveTeams } from './utils/storage';
+import { loadTeams, saveTeams, loadSeniors, saveSeniors } from './utils/storage';
 
 // Helper to parse date from various formats (Excel serial, string formats)
 const parseDate = (value: string): Date | null => {
@@ -185,6 +186,7 @@ function App() {
   });
 
   const [teams, setTeams] = useState<Team[]>([]);
+  const [seniors, setSeniors] = useState<string[]>([]);
   const [metrics, setMetrics] = useState<Metrics[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -193,11 +195,17 @@ function App() {
 
   useEffect(() => {
     setTeams(loadTeams());
+    setSeniors(loadSeniors());
   }, []);
 
   const handleTeamsChange = useCallback((newTeams: Team[]) => {
     setTeams(newTeams);
     saveTeams(newTeams);
+  }, []);
+
+  const handleSeniorsChange = useCallback((newSeniors: string[]) => {
+    setSeniors(newSeniors);
+    saveSeniors(newSeniors);
   }, []);
 
   const handleFileSelect = useCallback(
@@ -435,9 +443,15 @@ function App() {
             availableAgents={allAgentNames}
           />
 
-          <TeamComparison metrics={metrics} teams={teams} />
+          <SeniorManagement
+            seniors={seniors}
+            onSeniorsChange={handleSeniorsChange}
+            availableAgents={allAgentNames}
+          />
 
-          <ResultsTable metrics={metrics} teams={teams} />
+          <TeamComparison metrics={metrics} teams={teams} seniors={seniors} />
+
+          <ResultsTable metrics={metrics} teams={teams} seniors={seniors} />
         </div>
       </div>
     </div>

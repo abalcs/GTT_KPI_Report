@@ -33,3 +33,7 @@ export interface FileUploadState {
   quotes: File | null;
   hotPass: File | null;
 }
+
+export interface SeniorDesignation {
+  agentNames: string[];
+}
