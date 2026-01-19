@@ -332,7 +332,10 @@ function App() {
         const sheet = workbook.Sheets[sheetName];
         const rawData = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, { header: 1, defval: null });
 
-        console.log('Non-Converted raw data rows:', rawData.length);
+        console.log('=== NON-CONVERTED FILE DEBUG ===');
+        console.log('Total raw rows:', rawData.length);
+        console.log('First 10 rows:');
+        rawData.slice(0, 10).forEach((row, i) => console.log(`Row ${i}:`, row));
 
         let currentAgent = '';
         let currentValidationGroup = ''; // 'non validated' or 'converted'
@@ -349,13 +352,19 @@ function App() {
 
           // Look for header patterns
           if (rowStr.includes('lead name') || rowStr.includes('account name') ||
-              rowStr.includes('created date') || rowStr.includes('owner name')) {
+              rowStr.includes('created date') || rowStr.includes('owner name') ||
+              rowStr.includes('lead:') || rowStr.includes('name')) {
             headerRowIndex = i;
+            console.log('Found header row at index:', i, 'Content:', row);
             break;
           }
         }
 
-        console.log('Non-Converted header row index:', headerRowIndex);
+        // If no header found, start from 0
+        if (headerRowIndex === -1) {
+          headerRowIndex = 0;
+          console.log('No header row found, starting from row 0');
+        }
 
         // Second pass: process rows with group tracking
         for (let i = headerRowIndex + 1; i < rawData.length; i++) {
@@ -365,47 +374,62 @@ function App() {
           const firstCell = String(row[0] || '').trim();
           const secondCell = String(row[1] || '').trim();
           const rowStr = row.map(c => String(c || '')).join('|').toLowerCase();
+          const firstCellLower = firstCell.toLowerCase();
+          const secondCellLower = secondCell.toLowerCase();
 
           // Skip subtotal/total rows
           if (rowStr.includes('subtotal') || rowStr.includes('grand total')) continue;
 
-          // Check if this row is a group header (agent name or validation status)
-          const nonEmptyCells = row.filter(c => c !== null && c !== '').length;
+          // Count non-empty cells
+          const nonEmptyCells = row.filter(c => c !== null && String(c).trim() !== '').length;
 
-          // Check for validation status group headers
-          if (firstCell.toLowerCase() === 'non validated' || firstCell.toLowerCase() === 'not validated' ||
-              secondCell.toLowerCase() === 'non validated' || secondCell.toLowerCase() === 'not validated') {
+          // Check for validation status group headers (more flexible matching)
+          const isNonValidatedGroup = firstCellLower.includes('non validated') || firstCellLower.includes('non-validated') ||
+                                      firstCellLower.includes('not validated') || firstCellLower === 'non validated' ||
+                                      secondCellLower.includes('non validated') || secondCellLower.includes('non-validated') ||
+                                      secondCellLower.includes('not validated') || secondCellLower === 'non validated';
+
+          const isConvertedGroup = (firstCellLower === 'converted' || firstCellLower === 'validated' ||
+                                    firstCellLower.includes('converted') || secondCellLower === 'converted' ||
+                                    secondCellLower === 'validated' || secondCellLower.includes('converted')) &&
+                                   !firstCellLower.includes('non') && !secondCellLower.includes('non');
+
+          if (isNonValidatedGroup) {
             currentValidationGroup = 'non validated';
-            console.log(`Found Non Validated group for agent: ${currentAgent}`);
+            console.log(`[Group] Non Validated for agent: ${currentAgent} (row ${i}: ${firstCell})`);
             continue;
           }
 
-          if (firstCell.toLowerCase() === 'converted' || firstCell.toLowerCase() === 'validated' ||
-              secondCell.toLowerCase() === 'converted' || secondCell.toLowerCase() === 'validated') {
+          if (isConvertedGroup) {
             currentValidationGroup = 'converted';
-            console.log(`Found Converted group for agent: ${currentAgent}`);
+            console.log(`[Group] Converted for agent: ${currentAgent} (row ${i}: ${firstCell})`);
             continue;
           }
 
-          // Check if this is an agent name row (typically few non-empty cells, looks like a name)
-          // Agent names usually appear alone or with minimal data in a row
-          if (nonEmptyCells <= 2 && firstCell && !firstCell.toLowerCase().includes('total')) {
-            // Check if it looks like a person's name (contains space, doesn't look like data)
-            const looksLikeName = firstCell.includes(' ') &&
+          // Check if this is an agent name row
+          // Agent names: usually 1-3 non-empty cells, looks like a name, no validation keywords
+          if (nonEmptyCells <= 3 && firstCell && !firstCellLower.includes('total')) {
+            const hasValidationKeyword = firstCellLower.includes('validated') || firstCellLower.includes('converted');
+            const looksLikeName = (firstCell.includes(' ') || firstCell.includes(',')) &&
                                   !firstCell.match(/^\d/) &&
-                                  !firstCell.toLowerCase().includes('validated') &&
-                                  !firstCell.toLowerCase().includes('converted') &&
+                                  !hasValidationKeyword &&
                                   firstCell.length > 3;
-            if (looksLikeName) {
+
+            // Also check if it could be "Last, First" format
+            const isNameFormat = looksLikeName ||
+                                 (firstCell.match(/^[A-Z][a-z]+ [A-Z][a-z]+$/) !== null) ||
+                                 (firstCell.match(/^[A-Z][a-z]+, [A-Z][a-z]+$/) !== null);
+
+            if (isNameFormat && !hasValidationKeyword) {
               currentAgent = firstCell;
               currentValidationGroup = ''; // Reset validation group for new agent
-              console.log(`Found agent: ${currentAgent}`);
+              console.log(`[Agent] Found: ${currentAgent} (row ${i}, nonEmptyCells: ${nonEmptyCells})`);
               continue;
             }
           }
 
           // This is a data row - count it if we have both agent and validation group
-          if (currentAgent && currentValidationGroup) {
+          if (currentAgent && currentValidationGroup && nonEmptyCells > 2) {
             const current = nonConvertedCounts.get(currentAgent) || { nonValidated: 0, total: 0 };
             current.total += 1;
 
@@ -416,9 +440,10 @@ function App() {
             nonConvertedCounts.set(currentAgent, current);
           }
         }
-      }
 
-      console.log('Non-Converted counts:', Object.fromEntries(nonConvertedCounts));
+        console.log('=== NON-CONVERTED RESULTS ===');
+        console.log('Counts:', Object.fromEntries(nonConvertedCounts));
+      }
 
       const allAgents = new Set([
         ...tripsCounts.keys(),
