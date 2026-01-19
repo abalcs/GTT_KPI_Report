@@ -116,6 +116,7 @@ function App() {
     passthroughs: null,
     trips: null,
     quotes: null,
+    hotPass: null,
   });
 
   const [teams, setTeams] = useState<Team[]>([]);
@@ -141,8 +142,8 @@ function App() {
   );
 
   const processFiles = useCallback(async () => {
-    if (!files.trips || !files.quotes || !files.passthroughs) {
-      setError('Please upload all three files');
+    if (!files.trips || !files.quotes || !files.passthroughs || !files.hotPass) {
+      setError('Please upload all four files');
       return;
     }
 
@@ -150,15 +151,17 @@ function App() {
     setError(null);
 
     try {
-      const [tripsRows, quotesRows, passthroughsRows] = await Promise.all([
+      const [tripsRows, quotesRows, passthroughsRows, hotPassRows] = await Promise.all([
         parseExcelFile(files.trips),
         parseExcelFile(files.quotes),
         parseExcelFile(files.passthroughs),
+        parseExcelFile(files.hotPass),
       ]);
 
       console.log('Trips rows:', tripsRows.length, 'First row:', tripsRows[0]);
       console.log('Quotes rows:', quotesRows.length, 'First row:', quotesRows[0]);
       console.log('Passthroughs rows:', passthroughsRows.length, 'First row:', passthroughsRows[0]);
+      console.log('Hot Pass rows:', hotPassRows.length, 'First row:', hotPassRows[0]);
 
       if (tripsRows.length === 0) {
         throw new Error('Trips file appears to be empty or invalid. Please check that the file contains data.');
@@ -183,22 +186,15 @@ function App() {
         ? countByAgent(passthroughsRows, passthroughsAgentCol)
         : new Map<string, number>();
 
-      // Count hot passes (passthroughs with non-zero "Passthrough Date vs Edit Date Diff")
-      const hotPassCounts = new Map<string, number>();
-      if (passthroughsAgentCol) {
-        const diffColKey = Object.keys(passthroughsRows[0] || {}).find(k =>
-          k.toLowerCase().includes('passthrough date vs edit date diff')
-        );
-        if (diffColKey) {
-          for (const row of passthroughsRows) {
-            const agent = row[passthroughsAgentCol];
-            const diffValue = parseFloat(row[diffColKey] || '0');
-            if (agent && !isNaN(diffValue) && diffValue !== 0) {
-              hotPassCounts.set(agent, (hotPassCounts.get(agent) || 0) + 1);
-            }
-          }
-        }
-      }
+      // Count hot passes from the Hot Pass file (trips per agent)
+      const hotPassAgentCol = hotPassRows.length > 0 ? findAgentColumn(hotPassRows[0]) : null;
+      console.log('Hot Pass agent column found:', hotPassAgentCol);
+
+      const hotPassCounts = hotPassAgentCol
+        ? countByAgent(hotPassRows, hotPassAgentCol)
+        : new Map<string, number>();
+
+      console.log('Hot Pass counts:', Object.fromEntries(hotPassCounts));
 
       const allAgents = new Set([
         ...tripsCounts.keys(),
@@ -236,7 +232,7 @@ function App() {
   }, [files]);
 
   const allAgentNames = metrics.map((m) => m.agentName);
-  const allFilesUploaded = files.trips && files.quotes && files.passthroughs;
+  const allFilesUploaded = files.trips && files.quotes && files.passthroughs && files.hotPass;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -250,7 +246,7 @@ function App() {
           </p>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <FileUpload
             label="Trips"
             file={files.trips}
@@ -284,6 +280,19 @@ function App() {
             icon={
               <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            }
+          />
+
+          <FileUpload
+            label="Hot Pass"
+            file={files.hotPass}
+            onFileSelect={handleFileSelect('hotPass')}
+            color="orange"
+            icon={
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
               </svg>
             }
           />

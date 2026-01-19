@@ -31,4 +31,5 @@ export interface FileUploadState {
   passthroughs: File | null;
   trips: File | null;
   quotes: File | null;
+  hotPass: File | null;
 }
