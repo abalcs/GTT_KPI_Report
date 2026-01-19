@@ -321,113 +321,99 @@ function App() {
       console.log('Bookings counts:', Object.fromEntries(bookingsCounts));
 
       // Count non-converted leads and total leads from the Non-Converted file
-      const nonConvertedAgentCol = filteredNonConvertedRows.length > 0 ? findAgentColumn(filteredNonConvertedRows[0]) : null;
-      console.log('Non-Converted agent column found:', nonConvertedAgentCol);
-      console.log('Non-Converted file columns:', filteredNonConvertedRows.length > 0 ? Object.keys(filteredNonConvertedRows[0]) : 'no rows');
-
-      // For non-converted, we need to count non-validated leads and total leads per agent
+      // This file has a grouped structure: Agent > Validation Status (Non Validated/Converted) > Leads
       const nonConvertedCounts = new Map<string, { nonValidated: number; total: number }>();
-      if (nonConvertedAgentCol && filteredNonConvertedRows.length > 0) {
-        const firstRow = filteredNonConvertedRows[0];
-        const allColumns = Object.keys(firstRow);
 
-        // Look for columns that contain count data (for summary-style reports)
-        // Non-validated count column: look for "non validated", "non-validated", "non converted", etc.
-        const nonValidatedCountCol = allColumns.find(k => {
-          const lower = k.toLowerCase();
-          return (lower.includes('non') && (lower.includes('validated') || lower.includes('converted'))) ||
-                 lower.includes('not validated') || lower.includes('not converted');
-        });
+      if (files.nonConverted) {
+        // Re-parse the file to handle the grouped structure
+        const buffer = await files.nonConverted.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rawData = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, { header: 1, defval: null });
 
-        // Total count column: look for "total", "record count", "lead count", etc.
-        const totalCountCol = allColumns.find(k => {
-          const lower = k.toLowerCase();
-          return lower.includes('total') || lower.includes('record count') || lower.includes('lead count') ||
-                 (lower.includes('count') && !lower.includes('non'));
-        });
+        console.log('Non-Converted raw data rows:', rawData.length);
 
-        console.log('Non-validated count column:', nonValidatedCountCol);
-        console.log('Total count column:', totalCountCol);
+        let currentAgent = '';
+        let currentValidationGroup = ''; // 'non validated' or 'converted'
+        let headerRowIndex = -1;
 
-        if (filteredNonConvertedRows.length > 0) {
-          console.log('Sample row:', filteredNonConvertedRows[0]);
+        // First pass: find header row
+        for (let i = 0; i < Math.min(50, rawData.length); i++) {
+          const row = rawData[i];
+          if (!row) continue;
+          const rowStr = row.join('|').toLowerCase();
+
+          // Skip filter rows
+          if (rowStr.includes('contains ') || rowStr.includes('equals ')) continue;
+
+          // Look for header patterns
+          if (rowStr.includes('lead name') || rowStr.includes('account name') ||
+              rowStr.includes('created date') || rowStr.includes('owner name')) {
+            headerRowIndex = i;
+            break;
+          }
         }
 
-        // If we found count columns, this is a summary report - read the counts directly
-        if (nonValidatedCountCol && totalCountCol) {
-          console.log('Using summary report format (count columns found)');
-          for (const row of filteredNonConvertedRows) {
-            const agent = row[nonConvertedAgentCol];
-            if (agent) {
-              const nonValidatedCount = parseInt(row[nonValidatedCountCol] || '0', 10) || 0;
-              const totalCount = parseInt(row[totalCountCol] || '0', 10) || 0;
+        console.log('Non-Converted header row index:', headerRowIndex);
 
-              const current = nonConvertedCounts.get(agent) || { nonValidated: 0, total: 0 };
-              current.nonValidated += nonValidatedCount;
-              current.total += totalCount;
-              nonConvertedCounts.set(agent, current);
-            }
-          }
-        } else if (nonValidatedCountCol) {
-          // Only non-validated count column found - might need to find total differently
-          console.log('Only non-validated count column found, looking for total in different way');
+        // Second pass: process rows with group tracking
+        for (let i = headerRowIndex + 1; i < rawData.length; i++) {
+          const row = rawData[i];
+          if (!row || row.every(cell => cell === null || cell === '')) continue;
 
-          // Look for a "validated" count column to calculate total
-          const validatedCountCol = allColumns.find(k => {
-            const lower = k.toLowerCase();
-            return (lower.includes('validated') || lower.includes('converted')) &&
-                   !lower.includes('non') && !lower.includes('not');
-          });
+          const firstCell = String(row[0] || '').trim();
+          const secondCell = String(row[1] || '').trim();
+          const rowStr = row.map(c => String(c || '')).join('|').toLowerCase();
 
-          for (const row of filteredNonConvertedRows) {
-            const agent = row[nonConvertedAgentCol];
-            if (agent) {
-              const nonValidatedCount = parseInt(row[nonValidatedCountCol] || '0', 10) || 0;
-              const validatedCount = validatedCountCol ? (parseInt(row[validatedCountCol] || '0', 10) || 0) : 0;
-              const totalCount = nonValidatedCount + validatedCount;
+          // Skip subtotal/total rows
+          if (rowStr.includes('subtotal') || rowStr.includes('grand total')) continue;
 
-              const current = nonConvertedCounts.get(agent) || { nonValidated: 0, total: 0 };
-              current.nonValidated += nonValidatedCount;
-              current.total += totalCount > 0 ? totalCount : nonValidatedCount; // Fallback to non-validated if no total
-              nonConvertedCounts.set(agent, current);
-            }
-          }
-        } else {
-          // No count columns found - this is a detail report where each row is a lead
-          console.log('Using detail report format (counting rows)');
+          // Check if this row is a group header (agent name or validation status)
+          const nonEmptyCells = row.filter(c => c !== null && c !== '').length;
 
-          // Find the column that indicates validation status
-          const validatedColKey = allColumns.find(k =>
-            k.toLowerCase().includes('validated') || k.toLowerCase().includes('status') || k.toLowerCase().includes('converted')
-          );
-
-          console.log('Validated status column found:', validatedColKey);
-          if (validatedColKey && filteredNonConvertedRows.length > 0) {
-            const sampleValues = filteredNonConvertedRows.slice(0, 10).map(r => r[validatedColKey]);
-            console.log('Sample validated column values:', sampleValues);
+          // Check for validation status group headers
+          if (firstCell.toLowerCase() === 'non validated' || firstCell.toLowerCase() === 'not validated' ||
+              secondCell.toLowerCase() === 'non validated' || secondCell.toLowerCase() === 'not validated') {
+            currentValidationGroup = 'non validated';
+            console.log(`Found Non Validated group for agent: ${currentAgent}`);
+            continue;
           }
 
-          for (const row of filteredNonConvertedRows) {
-            const agent = row[nonConvertedAgentCol];
-            if (agent) {
-              const current = nonConvertedCounts.get(agent) || { nonValidated: 0, total: 0 };
-              current.total += 1;
+          if (firstCell.toLowerCase() === 'converted' || firstCell.toLowerCase() === 'validated' ||
+              secondCell.toLowerCase() === 'converted' || secondCell.toLowerCase() === 'validated') {
+            currentValidationGroup = 'converted';
+            console.log(`Found Converted group for agent: ${currentAgent}`);
+            continue;
+          }
 
-              if (validatedColKey) {
-                const validatedValue = row[validatedColKey]?.toLowerCase().trim() || '';
-                // Count as NON-VALIDATED if it contains indicators of non-validation
-                const isNonValidated = validatedValue === 'no' || validatedValue === 'false' || validatedValue === '0' ||
-                                       validatedValue === 'n' || validatedValue.includes('non') || validatedValue.includes('not') ||
-                                       validatedValue === '' || validatedValue === 'null' || validatedValue === 'na' ||
-                                       validatedValue === 'n/a';
-
-                if (isNonValidated) {
-                  current.nonValidated += 1;
-                }
-              }
-
-              nonConvertedCounts.set(agent, current);
+          // Check if this is an agent name row (typically few non-empty cells, looks like a name)
+          // Agent names usually appear alone or with minimal data in a row
+          if (nonEmptyCells <= 2 && firstCell && !firstCell.toLowerCase().includes('total')) {
+            // Check if it looks like a person's name (contains space, doesn't look like data)
+            const looksLikeName = firstCell.includes(' ') &&
+                                  !firstCell.match(/^\d/) &&
+                                  !firstCell.toLowerCase().includes('validated') &&
+                                  !firstCell.toLowerCase().includes('converted') &&
+                                  firstCell.length > 3;
+            if (looksLikeName) {
+              currentAgent = firstCell;
+              currentValidationGroup = ''; // Reset validation group for new agent
+              console.log(`Found agent: ${currentAgent}`);
+              continue;
             }
+          }
+
+          // This is a data row - count it if we have both agent and validation group
+          if (currentAgent && currentValidationGroup) {
+            const current = nonConvertedCounts.get(currentAgent) || { nonValidated: 0, total: 0 };
+            current.total += 1;
+
+            if (currentValidationGroup === 'non validated') {
+              current.nonValidated += 1;
+            }
+
+            nonConvertedCounts.set(currentAgent, current);
           }
         }
       }
