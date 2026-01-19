@@ -6,7 +6,7 @@ interface ResultsTableProps {
   teams: Team[];
 }
 
-type SortColumn = 'quotesFromTrips' | 'passthroughsFromTrips' | 'quotesFromPassthroughs' | null;
+type SortColumn = 'quotesFromTrips' | 'passthroughsFromTrips' | 'quotesFromPassthroughs' | 'hotPassRate' | null;
 type SortDirection = 'asc' | 'desc';
 
 const formatPercent = (value: number): string => {
@@ -57,14 +57,16 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams }) =>
       trips: acc.trips + m.trips,
       quotes: acc.quotes + m.quotes,
       passthroughs: acc.passthroughs + m.passthroughs,
+      hotPasses: acc.hotPasses + m.hotPasses,
     }),
-    { trips: 0, quotes: 0, passthroughs: 0 }
+    { trips: 0, quotes: 0, passthroughs: 0, hotPasses: 0 }
   );
 
   const totalMetrics = {
     quotesFromTrips: totals.trips > 0 ? (totals.quotes / totals.trips) * 100 : 0,
     passthroughsFromTrips: totals.trips > 0 ? (totals.passthroughs / totals.trips) * 100 : 0,
     quotesFromPassthroughs: totals.passthroughs > 0 ? (totals.quotes / totals.passthroughs) * 100 : 0,
+    hotPassRate: totals.passthroughs > 0 ? (totals.hotPasses / totals.passthroughs) * 100 : 0,
   };
 
   const teamAggregates = teams.map((team) => {
@@ -74,8 +76,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams }) =>
         trips: acc.trips + m.trips,
         quotes: acc.quotes + m.quotes,
         passthroughs: acc.passthroughs + m.passthroughs,
+        hotPasses: acc.hotPasses + m.hotPasses,
       }),
-      { trips: 0, quotes: 0, passthroughs: 0 }
+      { trips: 0, quotes: 0, passthroughs: 0, hotPasses: 0 }
     );
 
     return {
@@ -84,9 +87,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams }) =>
       trips: teamTotals.trips,
       quotes: teamTotals.quotes,
       passthroughs: teamTotals.passthroughs,
+      hotPasses: teamTotals.hotPasses,
       quotesFromTrips: teamTotals.trips > 0 ? (teamTotals.quotes / teamTotals.trips) * 100 : 0,
       passthroughsFromTrips: teamTotals.trips > 0 ? (teamTotals.passthroughs / teamTotals.trips) * 100 : 0,
       quotesFromPassthroughs: teamTotals.passthroughs > 0 ? (teamTotals.quotes / teamTotals.passthroughs) * 100 : 0,
+      hotPassRate: teamTotals.passthroughs > 0 ? (teamTotals.hotPasses / teamTotals.passthroughs) * 100 : 0,
     };
   });
 
@@ -193,6 +198,15 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams }) =>
                   <SortIcon column="quotesFromPassthroughs" />
                 </div>
               </th>
+              <th
+                className="px-6 py-3 text-center text-xs font-semibold text-orange-600 uppercase tracking-wider cursor-pointer hover:bg-orange-50 transition-colors"
+                onClick={() => handleSort('hotPassRate')}
+              >
+                <div className="flex items-center justify-center">
+                  Hot Pass
+                  <SortIcon column="hotPassRate" />
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -230,6 +244,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams }) =>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-purple-600 text-center">
                     {formatPercent(m.quotesFromPassthroughs)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-orange-600 text-center">
+                    {formatPercent(m.hotPassRate)}
+                  </td>
                 </tr>
               );
             })}
@@ -237,7 +254,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams }) =>
             {selectedTeam === 'all' && teamAggregates.length > 0 && (
               <>
                 <tr className="bg-indigo-50">
-                  <td colSpan={8} className="px-6 py-2 text-xs font-semibold text-indigo-600 uppercase">
+                  <td colSpan={9} className="px-6 py-2 text-xs font-semibold text-indigo-600 uppercase">
                     Team Totals
                   </td>
                 </tr>
@@ -264,6 +281,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams }) =>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-purple-700 text-center">
                       {formatPercent(ta.quotesFromPassthroughs)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-orange-700 text-center">
+                      {formatPercent(ta.hotPassRate)}
                     </td>
                   </tr>
                 ))}
@@ -292,6 +312,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams }) =>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-purple-300 text-center">
                 {formatPercent(totalMetrics.quotesFromPassthroughs)}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-orange-300 text-center">
+                {formatPercent(totalMetrics.hotPassRate)}
               </td>
             </tr>
           </tbody>

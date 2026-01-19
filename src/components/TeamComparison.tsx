@@ -6,7 +6,7 @@ interface TeamComparisonProps {
   teams: Team[];
 }
 
-type SortKey = 'name' | 'trips' | 'quotes' | 'passthroughs' | 'tq' | 'tp' | 'pq';
+type SortKey = 'name' | 'trips' | 'quotes' | 'passthroughs' | 'tq' | 'tp' | 'pq' | 'hotPass';
 
 const formatPercent = (value: number): string => {
   if (isNaN(value) || !isFinite(value)) return '0.0%';
@@ -29,8 +29,9 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams }
         trips: acc.trips + m.trips,
         quotes: acc.quotes + m.quotes,
         passthroughs: acc.passthroughs + m.passthroughs,
+        hotPasses: acc.hotPasses + m.hotPasses,
       }),
-      { trips: 0, quotes: 0, passthroughs: 0 }
+      { trips: 0, quotes: 0, passthroughs: 0, hotPasses: 0 }
     );
 
     return {
@@ -42,6 +43,7 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams }
       tq: totals.trips > 0 ? (totals.quotes / totals.trips) * 100 : 0,
       tp: totals.trips > 0 ? (totals.passthroughs / totals.trips) * 100 : 0,
       pq: totals.passthroughs > 0 ? (totals.quotes / totals.passthroughs) * 100 : 0,
+      hotPass: totals.passthroughs > 0 ? (totals.hotPasses / totals.passthroughs) * 100 : 0,
     };
   });
 
@@ -118,6 +120,7 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams }
             <SortButton label="T>Q" sortKeyVal="tq" color="blue" />
             <SortButton label="T>P" sortKeyVal="tp" color="green" />
             <SortButton label="P>Q" sortKeyVal="pq" color="purple" />
+            <SortButton label="Hot Pass" sortKeyVal="hotPass" color="orange" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -180,7 +183,7 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams }
                   </div>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-3 gap-2 text-center">
+                <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-4 gap-2 text-center">
                   <div>
                     <div className="text-lg font-bold text-blue-600">{formatPercent(team.tq)}</div>
                     <div className="text-xs text-gray-500">T&gt;Q</div>
@@ -192,6 +195,10 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams }
                   <div>
                     <div className="text-lg font-bold text-purple-600">{formatPercent(team.pq)}</div>
                     <div className="text-xs text-gray-500">P&gt;Q</div>
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold text-orange-600">{formatPercent(team.hotPass)}</div>
+                    <div className="text-xs text-gray-500">Hot Pass</div>
                   </div>
                 </div>
               </div>

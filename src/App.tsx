@@ -183,6 +183,23 @@ function App() {
         ? countByAgent(passthroughsRows, passthroughsAgentCol)
         : new Map<string, number>();
 
+      // Count hot passes (passthroughs with non-zero "Passthrough Date vs Edit Date Diff")
+      const hotPassCounts = new Map<string, number>();
+      if (passthroughsAgentCol) {
+        const diffColKey = Object.keys(passthroughsRows[0] || {}).find(k =>
+          k.toLowerCase().includes('passthrough date vs edit date diff')
+        );
+        if (diffColKey) {
+          for (const row of passthroughsRows) {
+            const agent = row[passthroughsAgentCol];
+            const diffValue = parseFloat(row[diffColKey] || '0');
+            if (agent && !isNaN(diffValue) && diffValue !== 0) {
+              hotPassCounts.set(agent, (hotPassCounts.get(agent) || 0) + 1);
+            }
+          }
+        }
+      }
+
       const allAgents = new Set([
         ...tripsCounts.keys(),
         ...quotesCounts.keys(),
@@ -194,15 +211,18 @@ function App() {
           const trips = tripsCounts.get(agentName) || 0;
           const quotes = quotesCounts.get(agentName) || 0;
           const passthroughs = passthroughsCounts.get(agentName) || 0;
+          const hotPasses = hotPassCounts.get(agentName) || 0;
 
           return {
             agentName,
             trips,
             quotes,
             passthroughs,
+            hotPasses,
             quotesFromTrips: trips > 0 ? (quotes / trips) * 100 : 0,
             passthroughsFromTrips: trips > 0 ? (passthroughs / trips) * 100 : 0,
             quotesFromPassthroughs: passthroughs > 0 ? (quotes / passthroughs) * 100 : 0,
+            hotPassRate: passthroughs > 0 ? (hotPasses / passthroughs) * 100 : 0,
           };
         })
         .sort((a, b) => a.agentName.localeCompare(b.agentName));

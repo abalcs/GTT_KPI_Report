@@ -20,9 +20,11 @@ export interface Metrics {
   trips: number;
   quotes: number;
   passthroughs: number;
+  hotPasses: number;
   quotesFromTrips: number;
   passthroughsFromTrips: number;
   quotesFromPassthroughs: number;
+  hotPassRate: number;
 }
 
 export interface FileUploadState {
