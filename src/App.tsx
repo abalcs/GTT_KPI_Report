@@ -293,6 +293,15 @@ function App() {
       }
 
       const tripsCounts = countByAgent(filteredTripsRows, tripsAgentCol);
+      console.log('=== TRIPS COUNTS ===');
+      console.log('Trips agent column:', tripsAgentCol);
+      console.log('Sample agents from Trips:', Array.from(tripsCounts.entries()).slice(0, 5));
+      tripsCounts.forEach((count, agent) => {
+        if (agent.toLowerCase().includes('pappas') || agent.toLowerCase().includes('adrianna')) {
+          console.log(`Trips for ${agent}: ${count}`);
+        }
+      });
+
       const quotesCounts = quotesAgentCol
         ? countByAgent(filteredQuotesRows, quotesAgentCol)
         : new Map<string, number>();
