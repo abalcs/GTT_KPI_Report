@@ -55,7 +55,7 @@ export const findAgentColumn = (row: CSVRow): string | null => {
 
   // First priority: look for GTT-specific or Salesforce columns
   for (const key of keys) {
-    if (key.includes('owner name') || key.includes('last gtt action by')) {
+    if (key.includes('gtt owner') || key.includes('owner name') || key.includes('last gtt action by')) {
       return key;
     }
   }
