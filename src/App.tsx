@@ -9,7 +9,7 @@ import { SeniorManagement } from './components/SeniorManagement';
 import type { Team, Metrics, FileUploadState } from './types';
 import { findAgentColumn, countByAgent } from './utils/csvParser';
 import type { CSVRow } from './utils/csvParser';
-import { loadTeams, saveTeams, loadSeniors, saveSeniors } from './utils/storage';
+import { loadTeams, saveTeams, loadSeniors, saveSeniors, loadMetrics, saveMetrics, clearMetrics } from './utils/storage';
 
 // Helper to parse date from various formats (Excel serial, string formats)
 const parseDate = (value: string): Date | null => {
@@ -196,6 +196,7 @@ function App() {
   useEffect(() => {
     setTeams(loadTeams());
     setSeniors(loadSeniors());
+    setMetrics(loadMetrics());
   }, []);
 
   const handleTeamsChange = useCallback((newTeams: Team[]) => {
@@ -323,12 +324,24 @@ function App() {
         .sort((a, b) => a.agentName.localeCompare(b.agentName));
 
       setMetrics(calculatedMetrics);
+      saveMetrics(calculatedMetrics);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while processing files');
     } finally {
       setIsProcessing(false);
     }
   }, [files, startDate, endDate]);
+
+  const handleClearData = useCallback(() => {
+    setMetrics([]);
+    clearMetrics();
+    setFiles({
+      passthroughs: null,
+      trips: null,
+      quotes: null,
+      hotPass: null,
+    });
+  }, []);
 
   const handleClearDateFilter = useCallback(() => {
     setStartDate('');
@@ -410,7 +423,7 @@ function App() {
           onClear={handleClearDateFilter}
         />
 
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center gap-4 mb-8">
           <button
             onClick={processFiles}
             disabled={!allFilesUploaded || isProcessing}
@@ -428,6 +441,15 @@ function App() {
               'Analyze Data'
             )}
           </button>
+
+          {metrics.length > 0 && (
+            <button
+              onClick={handleClearData}
+              className="px-6 py-3 bg-gray-600 text-white font-semibold rounded-xl shadow-lg hover:bg-gray-700 transition-all duration-200"
+            >
+              Clear Data
+            </button>
+          )}
         </div>
 
         {error && (
