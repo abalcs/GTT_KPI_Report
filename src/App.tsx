@@ -12,7 +12,8 @@ import { AgentAnalytics } from './components/AgentAnalytics';
 import type { Team, Metrics, FileUploadState, TimeSeriesData } from './types';
 import { findAgentColumn, countByAgent } from './utils/csvParser';
 import type { CSVRow } from './utils/csvParser';
-import { loadTeams, saveTeams, loadSeniors, saveSeniors, loadMetrics, saveMetrics, clearMetrics, loadTimeSeriesData, saveTimeSeriesData, clearTimeSeriesData, loadRawParsedData, saveRawParsedData, clearRawParsedData, type RawParsedData } from './utils/storage';
+import { loadTeams, saveTeams, loadSeniors, saveSeniors, loadMetrics, saveMetrics, clearMetrics, loadTimeSeriesData, saveTimeSeriesData, clearTimeSeriesData } from './utils/storage';
+import { loadRawDataFromDB, saveRawDataToDB, clearRawDataFromDB, type RawParsedData } from './utils/indexedDB';
 import { countByAgentAndDate, buildAgentTimeSeries, buildTimeSeriesData } from './utils/timeSeriesUtils';
 
 // Helper to parse date from various formats (Excel serial, string formats)
@@ -230,7 +231,14 @@ function App() {
     setSeniors(loadSeniors());
     setMetrics(loadMetrics());
     setTimeSeriesData(loadTimeSeriesData());
-    setRawParsedData(loadRawParsedData());
+
+    // Load raw data from IndexedDB (async)
+    loadRawDataFromDB().then((data) => {
+      if (data) {
+        setRawParsedData(data);
+        console.log('Raw parsed data loaded from IndexedDB');
+      }
+    });
   }, []);
 
   const handleTeamsChange = useCallback((newTeams: Team[]) => {
@@ -291,7 +299,8 @@ function App() {
           bookings: bookingsRows,
           nonConverted: nonConvertedRows,
         };
-        saveRawParsedData(newRawData);
+        // Save to IndexedDB (async, don't await)
+        saveRawDataToDB(newRawData);
         setRawParsedData(newRawData);
       } else {
         // Use stored raw data
@@ -611,7 +620,7 @@ function App() {
     setTimeSeriesData(null);
     clearTimeSeriesData();
     setRawParsedData(null);
-    clearRawParsedData();
+    clearRawDataFromDB(); // Clear from IndexedDB
     setFiles({
       passthroughs: null,
       trips: null,

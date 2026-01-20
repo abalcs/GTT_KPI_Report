@@ -210,9 +210,8 @@ export const saveRawParsedData = (data: RawParsedData): void => {
     localStorage.setItem(RAW_DATA_STORAGE_KEY, JSON.stringify(data));
   } catch (error) {
     console.error('Failed to save raw parsed data to storage:', error);
-    // If storage is full, try to clear old data and retry
     if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-      console.warn('Storage quota exceeded, clearing old data...');
+      console.warn('Storage quota exceeded! Data too large for localStorage.');
     }
   }
 };
