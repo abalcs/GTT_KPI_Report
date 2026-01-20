@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-import * as XLSX from 'xlsx';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { ResultsTable } from './components/ResultsTable';
 import { TeamManagement } from './components/TeamManagement';
@@ -10,200 +9,17 @@ import { TrendsView } from './components/TrendsView';
 import { PresentationGenerator } from './components/PresentationGenerator';
 import { AgentAnalytics } from './components/AgentAnalytics';
 import type { Team, Metrics, FileUploadState, TimeSeriesData } from './types';
-import { findAgentColumn, countByAgent } from './utils/csvParser';
 import type { CSVRow } from './utils/csvParser';
 import { loadTeams, saveTeams, loadSeniors, saveSeniors, loadMetrics, saveMetrics, clearMetrics, loadTimeSeriesData, saveTimeSeriesData, clearTimeSeriesData } from './utils/storage';
 import { loadRawDataFromDB, saveRawDataToDB, clearRawDataFromDB, type RawParsedData } from './utils/indexedDB';
-import { countByAgentAndDate, buildAgentTimeSeries, buildTimeSeriesData } from './utils/timeSeriesUtils';
-
-// Helper to parse date from various formats (Excel serial, string formats)
-const parseDate = (value: string): Date | null => {
-  if (!value || value.trim() === '') return null;
-
-  // Try parsing as Excel serial number (days since 1900-01-01)
-  const numValue = parseFloat(value);
-  if (!isNaN(numValue) && numValue > 1000 && numValue < 100000) {
-    // Excel serial date - convert to JS Date
-    const excelEpoch = new Date(1899, 11, 30); // Excel epoch is Dec 30, 1899
-    const jsDate = new Date(excelEpoch.getTime() + numValue * 24 * 60 * 60 * 1000);
-    if (!isNaN(jsDate.getTime())) return jsDate;
-  }
-
-  // Try parsing as standard date string
-  const parsed = new Date(value);
-  if (!isNaN(parsed.getTime())) return parsed;
-
-  // Try MM/DD/YYYY format
-  const parts = value.split('/');
-  if (parts.length === 3) {
-    const month = parseInt(parts[0], 10) - 1;
-    const day = parseInt(parts[1], 10);
-    const year = parseInt(parts[2], 10);
-    const date = new Date(year, month, day);
-    if (!isNaN(date.getTime())) return date;
-  }
-
-  return null;
-};
-
-// Helper to find date column in a row
-const findDateColumn = (row: CSVRow, patterns: string[]): string | null => {
-  const keys = Object.keys(row);
-  for (const pattern of patterns) {
-    const found = keys.find(k => k.toLowerCase().includes(pattern.toLowerCase()));
-    if (found) return found;
-  }
-  return null;
-};
-
-// Helper to filter rows by date range
-const filterRowsByDate = (
-  rows: CSVRow[],
-  dateColumn: string | null,
-  startDate: string,
-  endDate: string
-): CSVRow[] => {
-  if (!dateColumn || (!startDate && !endDate)) return rows;
-
-  const start = startDate ? new Date(startDate) : null;
-  const end = endDate ? new Date(endDate) : null;
-  if (end) end.setHours(23, 59, 59, 999); // Include entire end day
-
-  return rows.filter(row => {
-    const dateValue = row[dateColumn];
-    const rowDate = parseDate(dateValue);
-    if (!rowDate) return true; // Keep rows without valid dates
-
-    if (start && rowDate < start) return false;
-    if (end && rowDate > end) return false;
-    return true;
-  });
-};
-
-// Helper to parse Excel files with header detection
-const parseExcelFile = async (file: File): Promise<CSVRow[]> => {
-  const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: 'array' });
-
-  // Get the first sheet
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-
-  // Get raw data as array of arrays
-  const rawData = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, { header: 1, defval: null });
-
-  // Find the header row (look for a row that looks like actual table headers)
-  let headerRowIndex = -1;
-  let headers: string[] = [];
-
-  for (let i = 0; i < Math.min(50, rawData.length); i++) {
-    const row = rawData[i];
-    if (!row) continue;
-
-    const nonEmptyCells = row.filter(cell => cell !== null && cell !== '');
-    const rowStr = row.join('|').toLowerCase();
-
-    // Skip filter description rows (they contain "contains" or "equals" in a single cell)
-    if (rowStr.includes('contains ') || rowStr.includes('equals ')) continue;
-
-    // Look for rows that have multiple cells and contain header-like patterns
-    // Headers typically have short text in multiple columns
-    const hasMultipleColumns = nonEmptyCells.length >= 4;
-    const hasHeaderPattern = rowStr.includes('owner name') ||
-                            rowStr.includes('last gtt action by') ||
-                            rowStr.includes('trip name') ||
-                            rowStr.includes('account name') ||
-                            rowStr.includes('created date') ||
-                            rowStr.includes('quote first sent') ||
-                            rowStr.includes('passthrough');
-
-    if (hasMultipleColumns && hasHeaderPattern) {
-      headerRowIndex = i;
-      headers = row.map((cell, idx) => {
-        const val = String(cell ?? `column_${idx}`).toLowerCase().trim();
-        return val || `column_${idx}`;
-      });
-      break;
-    }
-  }
-
-  if (headerRowIndex === -1) {
-    // Fallback: use first row with data
-    headerRowIndex = 0;
-    headers = (rawData[0] || []).map((cell, idx) =>
-      String(cell ?? `column_${idx}`).toLowerCase().trim() || `column_${idx}`
-    );
-  }
-
-  // Parse data rows, handling grouped format where agent name may be blank
-  const rows: CSVRow[] = [];
-  let currentAgent = '';
-
-  for (let i = headerRowIndex + 1; i < rawData.length; i++) {
-    const row = rawData[i];
-    if (!row || row.every(cell => cell === null || cell === '')) continue;
-
-    const rowObj: CSVRow = {};
-    headers.forEach((header, idx) => {
-      rowObj[header] = String(row[idx] ?? '').trim();
-    });
-
-    // Handle grouped format: if owner/agent name column is empty, use previous
-    const ownerKey = headers.find(h =>
-      h.includes('gtt owner') ||
-      h.includes('owner name') ||
-      h.includes('agent') ||
-      h.includes('last gtt action by')
-    );
-
-    // Check if this row is a group header (agent name row) - typically has few non-empty cells
-    const nonEmptyValues = Object.values(rowObj).filter(v => v && v !== '');
-    const firstValue = rowObj[headers[0]] || '';
-    const looksLikeGroupHeader = nonEmptyValues.length <= 2 &&
-                                  firstValue.length > 3 &&
-                                  (firstValue.includes(' ') || firstValue.includes(',')) &&
-                                  !firstValue.match(/^\d/) &&
-                                  !firstValue.toLowerCase().includes('total') &&
-                                  !firstValue.toLowerCase().includes('subtotal');
-
-    if (looksLikeGroupHeader) {
-      // This is a group header row - the first value is the agent name
-      currentAgent = firstValue;
-      continue; // Skip this row, don't add it as data
-    }
-
-    if (ownerKey) {
-      if (rowObj[ownerKey] && rowObj[ownerKey] !== '') {
-        currentAgent = rowObj[ownerKey];
-      } else {
-        rowObj[ownerKey] = currentAgent;
-      }
-    }
-
-    // If no owner column found but we have a current agent, add it to the row
-    if (!ownerKey && currentAgent) {
-      rowObj['_agent'] = currentAgent;
-    }
-
-    // Skip summary rows (Total, Subtotal, Grand Total, etc.)
-    const rowValues = Object.values(rowObj).join(' ').toLowerCase();
-    const isSummaryRow = rowValues.includes('subtotal') ||
-                         rowValues.includes('grand total') ||
-                         (ownerKey && (
-                           rowObj[ownerKey].toLowerCase() === 'total' ||
-                           rowObj[ownerKey].toLowerCase() === 'subtotal' ||
-                           rowObj[ownerKey].toLowerCase().includes('grand total')
-                         ));
-    if (isSummaryRow) continue;
-
-    // Only add rows that have some meaningful data
-    if (Object.values(rowObj).some(v => v && v !== '')) {
-      rows.push(rowObj);
-    }
-  }
-
-  return rows;
-};
+import { useFileProcessor } from './hooks/useFileProcessor';
+import {
+  findAgentColumn,
+  findDateColumn,
+  countByAgentOptimized,
+  calculateMetrics,
+  buildTimeSeriesOptimized
+} from './utils/metricsCalculator';
 
 function App() {
   const [files, setFiles] = useState<FileUploadState>({
@@ -220,11 +36,14 @@ function App() {
   const [metrics, setMetrics] = useState<Metrics[]>([]);
   const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData | null>(null);
   const [rawParsedData, setRawParsedData] = useState<RawParsedData | null>(null);
+  const [storedNonConvertedCounts, setStoredNonConvertedCounts] = useState<Record<string, number>>({});
   const [activeView, setActiveView] = useState<'summary' | 'trends'>('summary');
-  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+
+  // Worker-based file processor for parallel parsing
+  const { processFiles: processFilesWithWorker, state: workerState } = useFileProcessor();
 
   useEffect(() => {
     setTeams(loadTeams());
@@ -236,7 +55,6 @@ function App() {
     loadRawDataFromDB().then((data) => {
       if (data) {
         setRawParsedData(data);
-        console.log('Raw parsed data loaded from IndexedDB');
       }
     });
   }, []);
@@ -259,6 +77,7 @@ function App() {
     []
   );
 
+  // Optimized processing function
   const processFiles = useCallback(async () => {
     const hasAllFiles = files.trips && files.quotes && files.passthroughs && files.hotPass && files.bookings && files.nonConverted;
     const hasStoredData = rawParsedData !== null;
@@ -268,7 +87,6 @@ function App() {
       return;
     }
 
-    setIsProcessing(true);
     setError(null);
 
     try {
@@ -278,19 +96,32 @@ function App() {
       let hotPassRows: CSVRow[];
       let bookingsRows: CSVRow[];
       let nonConvertedRows: CSVRow[];
+      let nonConvertedCounts: Record<string, number> = {};
 
       if (hasAllFiles) {
-        // Parse new files and save to storage
-        [tripsRows, quotesRows, passthroughsRows, hotPassRows, bookingsRows, nonConvertedRows] = await Promise.all([
-          parseExcelFile(files.trips!),
-          parseExcelFile(files.quotes!),
-          parseExcelFile(files.passthroughs!),
-          parseExcelFile(files.hotPass!),
-          parseExcelFile(files.bookings!),
-          parseExcelFile(files.nonConverted!),
-        ]);
+        // Use Web Worker for parallel file parsing
+        const result = await processFilesWithWorker({
+          trips: files.trips!,
+          quotes: files.quotes!,
+          passthroughs: files.passthroughs!,
+          hotPass: files.hotPass!,
+          bookings: files.bookings!,
+          nonConverted: files.nonConverted!,
+        });
 
-        // Save raw data for future use (before date filtering)
+        if (!result) {
+          throw new Error('Failed to process files');
+        }
+
+        tripsRows = result.trips;
+        quotesRows = result.quotes;
+        passthroughsRows = result.passthroughs;
+        hotPassRows = result.hotPass;
+        bookingsRows = result.bookings;
+        nonConvertedRows = result.nonConverted;
+        nonConvertedCounts = result.nonConvertedCounts;
+
+        // Save raw data for future use
         const newRawData: RawParsedData = {
           trips: tripsRows,
           quotes: quotesRows,
@@ -299,9 +130,9 @@ function App() {
           bookings: bookingsRows,
           nonConverted: nonConvertedRows,
         };
-        // Save to IndexedDB (async, don't await)
         saveRawDataToDB(newRawData);
         setRawParsedData(newRawData);
+        setStoredNonConvertedCounts(nonConvertedCounts);
       } else {
         // Use stored raw data
         tripsRows = rawParsedData!.trips;
@@ -310,309 +141,112 @@ function App() {
         hotPassRows = rawParsedData!.hotPass;
         bookingsRows = rawParsedData!.bookings;
         nonConvertedRows = rawParsedData!.nonConverted;
-      }
 
-      console.log('Trips rows:', tripsRows.length, 'First row:', tripsRows[0]);
-      console.log('Quotes rows:', quotesRows.length, 'First row:', quotesRows[0]);
-      console.log('Passthroughs rows:', passthroughsRows.length, 'First row:', passthroughsRows[0]);
-      console.log('Hot Pass rows:', hotPassRows.length, 'First row:', hotPassRows[0]);
-      console.log('Bookings rows:', bookingsRows.length, 'First row:', bookingsRows[0]);
-      console.log('Non-Converted rows:', nonConvertedRows.length, 'First row:', nonConvertedRows[0]);
-
-      if (tripsRows.length === 0) {
-        throw new Error('Trips file appears to be empty or invalid. Please check that the file contains data.');
-      }
-
-      // Find date columns for each file type
-      const tripsDateCol = tripsRows.length > 0
-        ? findDateColumn(tripsRows[0], ['created date', 'trip: created date'])
-        : null;
-      const quotesDateCol = quotesRows.length > 0
-        ? findDateColumn(quotesRows[0], ['quote first sent', 'first sent date', 'created date'])
-        : null;
-      const passthroughsDateCol = passthroughsRows.length > 0
-        ? findDateColumn(passthroughsRows[0], ['passthrough to sales date', 'passthrough date', 'created date'])
-        : null;
-      const hotPassDateCol = hotPassRows.length > 0
-        ? findDateColumn(hotPassRows[0], ['created date', 'trip: created date'])
-        : null;
-      const bookingsDateCol = bookingsRows.length > 0
-        ? findDateColumn(bookingsRows[0], ['created date', 'booking date', 'date'])
-        : null;
-      const nonConvertedDateCol = nonConvertedRows.length > 0
-        ? findDateColumn(nonConvertedRows[0], ['created date', 'date'])
-        : null;
-
-      console.log('Date columns found - Trips:', tripsDateCol, 'Quotes:', quotesDateCol, 'Passthroughs:', passthroughsDateCol, 'Hot Pass:', hotPassDateCol, 'Bookings:', bookingsDateCol, 'Non-Converted:', nonConvertedDateCol);
-
-      // Filter rows by date range
-      const filteredTripsRows = filterRowsByDate(tripsRows, tripsDateCol, startDate, endDate);
-      const filteredQuotesRows = filterRowsByDate(quotesRows, quotesDateCol, startDate, endDate);
-      const filteredPassthroughsRows = filterRowsByDate(passthroughsRows, passthroughsDateCol, startDate, endDate);
-      const filteredHotPassRows = filterRowsByDate(hotPassRows, hotPassDateCol, startDate, endDate);
-      const filteredBookingsRows = filterRowsByDate(bookingsRows, bookingsDateCol, startDate, endDate);
-      const filteredNonConvertedRows = filterRowsByDate(nonConvertedRows, nonConvertedDateCol, startDate, endDate);
-
-      console.log('Filtered counts - Trips:', filteredTripsRows.length, 'Quotes:', filteredQuotesRows.length, 'Passthroughs:', filteredPassthroughsRows.length, 'Hot Pass:', filteredHotPassRows.length, 'Bookings:', filteredBookingsRows.length, 'Non-Converted:', filteredNonConvertedRows.length);
-
-      const tripsAgentCol = findAgentColumn(filteredTripsRows[0] || tripsRows[0]);
-      const quotesAgentCol = filteredQuotesRows.length > 0 ? findAgentColumn(filteredQuotesRows[0]) : null;
-      const passthroughsAgentCol = filteredPassthroughsRows.length > 0 ? findAgentColumn(filteredPassthroughsRows[0]) : null;
-
-      console.log('Agent columns found - Trips:', tripsAgentCol, 'Quotes:', quotesAgentCol, 'Passthroughs:', passthroughsAgentCol);
-
-      if (!tripsAgentCol) {
-        const availableColumns = Object.keys(tripsRows[0] || {}).join(', ');
-        throw new Error(`Could not identify agent column in Trips file. Available columns: ${availableColumns}`);
-      }
-
-      const tripsCounts = countByAgent(filteredTripsRows, tripsAgentCol);
-      // Also count unfiltered trips for non-converted percentage calculation
-      // (Non-converted file can't be date-filtered, so use unfiltered trips for consistency)
-      const unfilteredTripsCounts = countByAgent(tripsRows, tripsAgentCol);
-
-      console.log('=== TRIPS COUNTS ===');
-      console.log('Trips agent column:', tripsAgentCol);
-      console.log('Filtered trips count:', filteredTripsRows.length, 'Unfiltered trips count:', tripsRows.length);
-      console.log('Sample agents from Trips:', Array.from(tripsCounts.entries()).slice(0, 5));
-      tripsCounts.forEach((count, agent) => {
-        if (agent.toLowerCase().includes('pappas') || agent.toLowerCase().includes('adrianna')) {
-          console.log(`Trips for ${agent}: ${count} (unfiltered: ${unfilteredTripsCounts.get(agent) || 0})`);
-        }
-      });
-
-      const quotesCounts = quotesAgentCol
-        ? countByAgent(filteredQuotesRows, quotesAgentCol)
-        : new Map<string, number>();
-      const passthroughsCounts = passthroughsAgentCol
-        ? countByAgent(filteredPassthroughsRows, passthroughsAgentCol)
-        : new Map<string, number>();
-
-      // Count hot passes from the Hot Pass file (trips per agent)
-      const hotPassAgentCol = filteredHotPassRows.length > 0 ? findAgentColumn(filteredHotPassRows[0]) : null;
-      console.log('Hot Pass agent column found:', hotPassAgentCol);
-
-      const hotPassCounts = hotPassAgentCol
-        ? countByAgent(filteredHotPassRows, hotPassAgentCol)
-        : new Map<string, number>();
-
-      console.log('Hot Pass counts:', Object.fromEntries(hotPassCounts));
-
-      // Count bookings from the Bookings file
-      const bookingsAgentCol = filteredBookingsRows.length > 0 ? findAgentColumn(filteredBookingsRows[0]) : null;
-      console.log('Bookings agent column found:', bookingsAgentCol);
-
-      const bookingsCounts = bookingsAgentCol
-        ? countByAgent(filteredBookingsRows, bookingsAgentCol)
-        : new Map<string, number>();
-
-      console.log('Bookings counts:', Object.fromEntries(bookingsCounts));
-
-      // Count non-converted leads from the Non-Converted file
-      // This is a grouped Salesforce report where:
-      // - Lead Owner column shows agent name only on first row of their group
-      // - Subsequent rows have blank Lead Owner but belong to the same agent
-      // - Count rows per agent where Non Validated Reason has a value
-      // - Then divide by total trips for that agent
-      const nonConvertedCounts = new Map<string, number>();
-
-      if (hasAllFiles && files.nonConverted) {
-        // Parse directly from file for fresh uploads
-        const buffer = await files.nonConverted.arrayBuffer();
-        const workbook = XLSX.read(buffer, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const rawData = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, { header: 1, defval: null });
-
-        console.log('=== NON-CONVERTED FILE DEBUG ===');
-        console.log('Total raw rows:', rawData.length);
-
-        // Find header row with Lead Owner and Non Validated Reason columns
-        let headerRowIdx = -1;
-        let leadOwnerColIdx = -1;
-        let nonValidatedReasonColIdx = -1;
-
-        for (let i = 0; i < Math.min(30, rawData.length); i++) {
-          const row = rawData[i];
-          if (!row) continue;
-          const rowStr = row.join('|').toLowerCase();
-
-          // Look for row containing both "lead owner" and "non validated reason"
-          if (rowStr.includes('lead owner') && rowStr.includes('non validated reason')) {
-            headerRowIdx = i;
-            for (let j = 0; j < row.length; j++) {
-              const cell = String(row[j] || '').toLowerCase();
-              if (cell.includes('lead owner')) leadOwnerColIdx = j;
-              if (cell.includes('non validated reason')) nonValidatedReasonColIdx = j;
-            }
-            break;
-          }
-        }
-
-        console.log('Header row index:', headerRowIdx);
-        console.log('Lead Owner column index:', leadOwnerColIdx);
-        console.log('Non Validated Reason column index:', nonValidatedReasonColIdx);
-
-        if (headerRowIdx >= 0 && leadOwnerColIdx >= 0 && nonValidatedReasonColIdx >= 0) {
-          let currentAgent = '';
-
-          for (let i = headerRowIdx + 1; i < rawData.length; i++) {
-            const row = rawData[i];
-            if (!row) continue;
-
-            const leadOwner = String(row[leadOwnerColIdx] || '').trim();
-            const nonValidatedReason = String(row[nonValidatedReasonColIdx] || '').trim();
-
-            // If Lead Owner is populated, update current agent
-            if (leadOwner && leadOwner !== '') {
-              currentAgent = leadOwner;
-            }
-
-            // Count if there's a non-validated reason and we have an agent
-            if (currentAgent && nonValidatedReason && nonValidatedReason !== '') {
-              nonConvertedCounts.set(currentAgent, (nonConvertedCounts.get(currentAgent) || 0) + 1);
-            }
-          }
-
-          console.log('=== NON-CONVERTED COUNTS ===');
-          nonConvertedCounts.forEach((count, agent) => {
-            const trips = unfilteredTripsCounts.get(agent) || 0;
-            const pct = trips > 0 ? ((count / trips) * 100).toFixed(1) : '0.0';
-            console.log(`${agent}: ${count} non-converted / ${trips} unfiltered trips = ${pct}%`);
-          });
+        // Use stored non-converted counts or calculate from rows
+        if (Object.keys(storedNonConvertedCounts).length > 0) {
+          nonConvertedCounts = storedNonConvertedCounts;
         } else {
-          console.log('Could not find required columns in Non-Converted file');
-        }
-      } else if (nonConvertedRows.length > 0) {
-        // Use stored parsed data - extract counts from parsed rows
-        const leadOwnerCol = Object.keys(nonConvertedRows[0] || {}).find(k => k.includes('lead owner') || k.includes('_agent'));
-        const nonValidatedCol = Object.keys(nonConvertedRows[0] || {}).find(k => k.includes('non validated reason'));
+          // Extract from rows
+          const leadOwnerCol = Object.keys(nonConvertedRows[0] || {}).find(k =>
+            k.includes('lead owner') || k.includes('_agent')
+          );
+          const nonValidatedCol = Object.keys(nonConvertedRows[0] || {}).find(k =>
+            k.includes('non validated reason')
+          );
 
-        if (leadOwnerCol && nonValidatedCol) {
-          let currentAgent = '';
-          for (const row of nonConvertedRows) {
-            const leadOwner = (row[leadOwnerCol] || '').trim();
-            const nonValidatedReason = (row[nonValidatedCol] || '').trim();
+          if (leadOwnerCol && nonValidatedCol) {
+            let currentAgent = '';
+            for (const row of nonConvertedRows) {
+              const leadOwner = (row[leadOwnerCol] || '').trim();
+              const nonValidatedReason = (row[nonValidatedCol] || '').trim();
 
-            if (leadOwner && leadOwner !== '') {
-              currentAgent = leadOwner;
-            }
+              if (leadOwner && leadOwner !== '') {
+                currentAgent = leadOwner;
+              }
 
-            if (currentAgent && nonValidatedReason && nonValidatedReason !== '') {
-              nonConvertedCounts.set(currentAgent, (nonConvertedCounts.get(currentAgent) || 0) + 1);
-            }
-          }
-        }
-      }
-
-      const allAgents = new Set([
-        ...tripsCounts.keys(),
-        ...quotesCounts.keys(),
-        ...passthroughsCounts.keys(),
-        ...bookingsCounts.keys(),
-        ...nonConvertedCounts.keys(),
-      ]);
-
-      console.log('=== ALL AGENTS ===');
-      console.log('All agent names:', Array.from(allAgents));
-
-      const calculatedMetrics: Metrics[] = Array.from(allAgents)
-        .map((agentName) => {
-          const trips = tripsCounts.get(agentName) || 0;
-          const quotes = quotesCounts.get(agentName) || 0;
-          const passthroughs = passthroughsCounts.get(agentName) || 0;
-          const hotPasses = hotPassCounts.get(agentName) || 0;
-          const bookings = bookingsCounts.get(agentName) || 0;
-
-          // Try to find matching agent in nonConvertedCounts (handle slight name variations)
-          let nonConvertedCount = nonConvertedCounts.get(agentName) || 0;
-          if (nonConvertedCount === 0) {
-            // Try to find a close match (case-insensitive, trimmed)
-            const agentNameLower = agentName.toLowerCase().trim();
-            for (const [key, value] of nonConvertedCounts.entries()) {
-              if (key.toLowerCase().trim() === agentNameLower) {
-                nonConvertedCount = value;
-                break;
+              if (currentAgent && nonValidatedReason && nonValidatedReason !== '') {
+                nonConvertedCounts[currentAgent] = (nonConvertedCounts[currentAgent] || 0) + 1;
               }
             }
           }
+        }
+      }
 
-          // Use unfiltered trips for non-converted percentage (non-converted file can't be date-filtered)
-          const unfilteredTrips = unfilteredTripsCounts.get(agentName) || 0;
+      if (tripsRows.length === 0) {
+        throw new Error('Trips file appears to be empty or invalid.');
+      }
 
-          // Debug log for specific agents
-          if (agentName.toLowerCase().includes('pappas') || agentName.toLowerCase().includes('adrianna')) {
-            console.log(`[Metrics] ${agentName}: nonConverted=${nonConvertedCount}, trips=${trips}, unfilteredTrips=${unfilteredTrips}`);
-          }
+      // Find columns
+      const tripsAgentCol = findAgentColumn(tripsRows[0]);
+      const quotesAgentCol = quotesRows.length > 0 ? findAgentColumn(quotesRows[0]) : null;
+      const passthroughsAgentCol = passthroughsRows.length > 0 ? findAgentColumn(passthroughsRows[0]) : null;
+      const hotPassAgentCol = hotPassRows.length > 0 ? findAgentColumn(hotPassRows[0]) : null;
+      const bookingsAgentCol = bookingsRows.length > 0 ? findAgentColumn(bookingsRows[0]) : null;
 
-          return {
-            agentName,
-            trips,
-            quotes,
-            passthroughs,
-            hotPasses,
-            bookings,
-            nonConvertedLeads: nonConvertedCount,
-            totalLeads: unfilteredTrips, // Use unfiltered trips for non-converted percentage
-            quotesFromTrips: trips > 0 ? (quotes / trips) * 100 : 0,
-            passthroughsFromTrips: trips > 0 ? (passthroughs / trips) * 100 : 0,
-            quotesFromPassthroughs: passthroughs > 0 ? (quotes / passthroughs) * 100 : 0,
-            hotPassRate: passthroughs > 0 ? (hotPasses / passthroughs) * 100 : 0,
-            nonConvertedRate: unfilteredTrips > 0 ? (nonConvertedCount / unfilteredTrips) * 100 : 0,
-          };
-        })
-        .sort((a, b) => a.agentName.localeCompare(b.agentName));
+      if (!tripsAgentCol) {
+        throw new Error('Could not identify agent column in Trips file.');
+      }
+
+      // Find date columns
+      const tripsDateCol = findDateColumn(tripsRows[0], ['created date', 'trip: created date']);
+      const quotesDateCol = quotesRows.length > 0 ? findDateColumn(quotesRows[0], ['quote first sent', 'first sent date', 'created date']) : null;
+      const passthroughsDateCol = passthroughsRows.length > 0 ? findDateColumn(passthroughsRows[0], ['passthrough to sales date', 'passthrough date', 'created date']) : null;
+      const hotPassDateCol = hotPassRows.length > 0 ? findDateColumn(hotPassRows[0], ['created date', 'trip: created date']) : null;
+      const bookingsDateCol = bookingsRows.length > 0 ? findDateColumn(bookingsRows[0], ['created date', 'booking date', 'date']) : null;
+
+      // Optimized counting with date filtering in single pass
+      const tripsResult = countByAgentOptimized(tripsRows, tripsAgentCol, tripsDateCol, startDate, endDate);
+      const unfilteredTripsResult = countByAgentOptimized(tripsRows, tripsAgentCol, null, '', '');
+
+      const quotesResult = quotesAgentCol
+        ? countByAgentOptimized(quotesRows, quotesAgentCol, quotesDateCol, startDate, endDate)
+        : { total: new Map<string, number>(), byDate: new Map<string, Map<string, number>>() };
+
+      const passthroughsResult = passthroughsAgentCol
+        ? countByAgentOptimized(passthroughsRows, passthroughsAgentCol, passthroughsDateCol, startDate, endDate)
+        : { total: new Map<string, number>(), byDate: new Map<string, Map<string, number>>() };
+
+      const hotPassResult = hotPassAgentCol
+        ? countByAgentOptimized(hotPassRows, hotPassAgentCol, hotPassDateCol, startDate, endDate)
+        : { total: new Map<string, number>(), byDate: new Map<string, Map<string, number>>() };
+
+      const bookingsResult = bookingsAgentCol
+        ? countByAgentOptimized(bookingsRows, bookingsAgentCol, bookingsDateCol, startDate, endDate)
+        : { total: new Map<string, number>(), byDate: new Map<string, Map<string, number>>() };
+
+      // Convert non-converted counts to Map
+      const nonConvertedCountsMap = new Map(Object.entries(nonConvertedCounts));
+
+      // Calculate metrics
+      const calculatedMetrics = calculateMetrics(
+        tripsResult.total,
+        quotesResult.total,
+        passthroughsResult.total,
+        hotPassResult.total,
+        bookingsResult.total,
+        nonConvertedCountsMap,
+        unfilteredTripsResult.total
+      );
 
       setMetrics(calculatedMetrics);
       saveMetrics(calculatedMetrics);
 
-      // Build time-series data (counts by agent AND date)
-      const tripsCountsByDate = tripsAgentCol && tripsDateCol
-        ? countByAgentAndDate(tripsRows, tripsAgentCol, tripsDateCol, parseDate)
-        : new Map<string, Map<string, number>>();
-      const quotesCountsByDate = quotesAgentCol && quotesDateCol
-        ? countByAgentAndDate(quotesRows, quotesAgentCol, quotesDateCol, parseDate)
-        : new Map<string, Map<string, number>>();
-      const passthroughsCountsByDate = passthroughsAgentCol && passthroughsDateCol
-        ? countByAgentAndDate(passthroughsRows, passthroughsAgentCol, passthroughsDateCol, parseDate)
-        : new Map<string, Map<string, number>>();
-      const hotPassCountsByDate = hotPassAgentCol && hotPassDateCol
-        ? countByAgentAndDate(hotPassRows, hotPassAgentCol, hotPassDateCol, parseDate)
-        : new Map<string, Map<string, number>>();
-      const bookingsCountsByDate = bookingsAgentCol && bookingsDateCol
-        ? countByAgentAndDate(bookingsRows, bookingsAgentCol, bookingsDateCol, parseDate)
-        : new Map<string, Map<string, number>>();
-
-      // For non-converted, we need to count by date too - but the file has a special format
-      // We'll build it from the nonConvertedCounts but without date info for now
-      // Since it's a grouped report without individual dates per row
-      const nonConvertedCountsByDate = new Map<string, Map<string, number>>();
-      // Copy the agent totals but without date breakdown (they'll show as 'unknown' date)
-      nonConvertedCounts.forEach((count, agent) => {
-        const dateMap = new Map<string, number>();
-        dateMap.set('unknown', count);
-        nonConvertedCountsByDate.set(agent, dateMap);
-      });
-
-      const agentTimeSeries = buildAgentTimeSeries(
-        tripsCountsByDate,
-        quotesCountsByDate,
-        passthroughsCountsByDate,
-        hotPassCountsByDate,
-        bookingsCountsByDate,
-        nonConvertedCountsByDate
+      // Build time-series data
+      const tsData = buildTimeSeriesOptimized(
+        tripsResult.byDate,
+        quotesResult.byDate,
+        passthroughsResult.byDate,
+        hotPassResult.byDate,
+        bookingsResult.byDate,
+        seniors
       );
 
-      // Build and save time-series data
-      const tsData = buildTimeSeriesData(agentTimeSeries, seniors);
       setTimeSeriesData(tsData);
       saveTimeSeriesData(tsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while processing files');
-    } finally {
-      setIsProcessing(false);
     }
-  }, [files, startDate, endDate, rawParsedData]);
+  }, [files, startDate, endDate, rawParsedData, storedNonConvertedCounts, processFilesWithWorker, seniors]);
 
   const handleClearData = useCallback(() => {
     setMetrics([]);
@@ -620,7 +254,8 @@ function App() {
     setTimeSeriesData(null);
     clearTimeSeriesData();
     setRawParsedData(null);
-    clearRawDataFromDB(); // Clear from IndexedDB
+    setStoredNonConvertedCounts({});
+    clearRawDataFromDB();
     setFiles({
       passthroughs: null,
       trips: null,
@@ -636,10 +271,11 @@ function App() {
     setEndDate('');
   }, []);
 
-  const allAgentNames = metrics.map((m) => m.agentName);
+  const allAgentNames = useMemo(() => metrics.map((m) => m.agentName), [metrics]);
   const allFilesUploaded = files.trips && files.quotes && files.passthroughs && files.hotPass && files.bookings && files.nonConverted;
   const hasStoredData = rawParsedData !== null;
   const canAnalyze = allFilesUploaded || hasStoredData;
+  const isProcessing = workerState.isProcessing;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -749,7 +385,7 @@ function App() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Processing...
+                {workerState.stage || 'Processing...'}
               </span>
             ) : (
               'Analyze Data'
@@ -768,6 +404,19 @@ function App() {
             </>
           )}
         </div>
+
+        {/* Progress bar */}
+        {isProcessing && workerState.progress > 0 && (
+          <div className="mb-8 max-w-md mx-auto">
+            <div className="bg-slate-700 rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-300"
+                style={{ width: `${workerState.progress}%` }}
+              />
+            </div>
+            <p className="text-center text-slate-400 text-sm mt-2">{workerState.progress}%</p>
+          </div>
+        )}
 
         {error && (
           <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-center">
