@@ -50,7 +50,6 @@ export const saveRawDataToDB = async (data: RawParsedData): Promise<boolean> => 
       const request = store.put(data, 'rawParsedData');
 
       request.onsuccess = () => {
-        console.log('Raw data saved to IndexedDB successfully');
         resolve(true);
       };
 
@@ -75,13 +74,7 @@ export const loadRawDataFromDB = async (): Promise<RawParsedData | null> => {
 
       request.onsuccess = () => {
         const data = request.result as RawParsedData | undefined;
-        if (data) {
-          console.log('Raw data loaded from IndexedDB - trips:', data.trips?.length);
-          resolve(data);
-        } else {
-          console.log('No raw data found in IndexedDB');
-          resolve(null);
-        }
+        resolve(data || null);
       };
 
       request.onerror = () => {
@@ -104,7 +97,6 @@ export const clearRawDataFromDB = async (): Promise<void> => {
       const request = store.delete('rawParsedData');
 
       request.onsuccess = () => {
-        console.log('Raw data cleared from IndexedDB');
         resolve();
       };
 

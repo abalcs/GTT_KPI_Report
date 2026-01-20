@@ -165,7 +165,6 @@ function App() {
 
       // Find trip name column in trips for linking to non-converted
       const tripKeys = Object.keys(tripsRows[0] || {});
-      console.log('Trips columns:', tripKeys);
       const tripNameColInTrips = tripKeys.find(k => {
         const lower = k.toLowerCase();
         return lower.includes('trip name') ||
@@ -173,40 +172,17 @@ function App() {
           lower === 'name' ||
           lower.includes('opportunity');
       });
-      console.log('Trip name column in trips:', tripNameColInTrips);
-      console.log('Trips date column:', tripsDateCol);
 
       // Build trip date map for non-converted filtering
       const tripDateMap = buildTripDateMap(tripsRows, tripNameColInTrips || null, tripsDateCol);
-      console.log('Trip date map size:', tripDateMap.size);
-      if (tripDateMap.size > 0) {
-        const sampleEntries = Array.from(tripDateMap.entries()).slice(0, 3);
-        console.log('Sample trip date map entries:', sampleEntries);
-      }
 
-      // Try to find date column in non-converted file
-      let nonConvertedDateCol: string | null = null;
-      if (nonConvertedRows.length > 0) {
-        const ncColumns = Object.keys(nonConvertedRows[0]);
-        console.log('Non-converted columns:', ncColumns);
-
-        // First try direct date patterns (order matters - more specific first)
-        // Note: Don't use generic 'date' pattern as it matches 'validated' in 'non validated reason'
-        nonConvertedDateCol = findDateColumn(nonConvertedRows[0], [
-          'last modified', 'modified date', 'created date', 'lead created date',
-          'trip created date', 'trip: created date', 'close date', 'timestamp'
-        ]);
-
-        console.log('Non-converted date column found:', nonConvertedDateCol);
-
-        // Show sample dates from non-converted file
-        if (nonConvertedDateCol) {
-          const dateCol = nonConvertedDateCol; // TypeScript narrowing
-          const sampleDates = nonConvertedRows.slice(0, 5).map(r => r[dateCol]);
-          console.log('Sample non-converted date values:', sampleDates);
-          console.log('Date filter range:', startDate, 'to', endDate);
-        }
-      }
+      // Find date column in non-converted file (order matters - more specific patterns first)
+      const nonConvertedDateCol = nonConvertedRows.length > 0
+        ? findDateColumn(nonConvertedRows[0], [
+            'last modified', 'modified date', 'created date', 'lead created date',
+            'trip created date', 'trip: created date', 'close date', 'timestamp'
+          ])
+        : null;
 
       // Optimized counting with date filtering in single pass
       const tripsResult = countByAgentOptimized(tripsRows, tripsAgentCol, tripsDateCol, startDate, endDate);

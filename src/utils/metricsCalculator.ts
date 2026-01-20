@@ -201,26 +201,7 @@ export const countNonConvertedOptimized = (
   const endTime = endDate ? new Date(endDate + 'T23:59:59').getTime() : null;
   const hasDateFilter = startTime || endTime;
 
-  // Debug logging
-  console.log('countNonConvertedOptimized - dateColumn:', dateColumn);
-  console.log('countNonConvertedOptimized - hasDateFilter:', hasDateFilter);
-  console.log('countNonConvertedOptimized - startTime:', startTime, 'endTime:', endTime);
-
-  // Log sample raw date values
-  if (dateColumn && rows.length > 0) {
-    const sampleRawDates = rows.slice(0, 5).map(r => r[dateColumn]).filter(d => d);
-    console.log('Sample raw date values from column:', sampleRawDates);
-    if (sampleRawDates.length > 0) {
-      const testParsed = parseDate(sampleRawDates[0]);
-      console.log('First date parsed as:', testParsed);
-    }
-  }
-
   let currentAgent = '';
-  let debugParsedCount = 0;
-  let debugInRangeCount = 0;
-  let debugOutOfRangeCount = 0;
-  let debugNoDateCount = 0;
 
   for (const row of rows) {
     const leadOwner = (row[leadOwnerCol] || '').trim();
@@ -243,7 +224,6 @@ export const countNonConvertedOptimized = (
       // First try: direct date column
       if (dateColumn && row[dateColumn]) {
         dateStr = parseDate(row[dateColumn]);
-        if (dateStr) debugParsedCount++;
       }
 
       // Second try: match trip name to trip dates
@@ -257,33 +237,15 @@ export const countNonConvertedOptimized = (
       // Apply date filter if we found a date
       if (dateStr) {
         const rowTime = new Date(dateStr).getTime();
-        if (startTime && rowTime < startTime) {
-          debugOutOfRangeCount++;
-          continue;
-        }
-        if (endTime && rowTime > endTime) {
-          debugOutOfRangeCount++;
-          continue;
-        }
-        debugInRangeCount++;
+        if (startTime && rowTime < startTime) continue;
+        if (endTime && rowTime > endTime) continue;
       } else {
         // No date found - can't filter this row, so skip it when date filter is active
-        debugNoDateCount++;
         continue;
       }
     }
 
     counts.set(currentAgent, (counts.get(currentAgent) || 0) + 1);
-  }
-
-  // Log debug info
-  if (hasDateFilter) {
-    console.log('countNonConvertedOptimized results:');
-    console.log('  - Dates parsed successfully:', debugParsedCount);
-    console.log('  - In date range:', debugInRangeCount);
-    console.log('  - Out of date range:', debugOutOfRangeCount);
-    console.log('  - No date found:', debugNoDateCount);
-    console.log('  - Final count:', Array.from(counts.values()).reduce((a, b) => a + b, 0));
   }
 
   return counts;
