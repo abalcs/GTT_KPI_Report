@@ -7,6 +7,7 @@ import { TeamComparison } from './components/TeamComparison';
 import { DateRangeFilter } from './components/DateRangeFilter';
 import { SeniorManagement } from './components/SeniorManagement';
 import { TrendsView } from './components/TrendsView';
+import { PresentationGenerator } from './components/PresentationGenerator';
 import type { Team, Metrics, FileUploadState, TimeSeriesData } from './types';
 import { findAgentColumn, countByAgent } from './utils/csvParser';
 import type { CSVRow } from './utils/csvParser';
@@ -686,12 +687,15 @@ function App() {
           </button>
 
           {metrics.length > 0 && (
-            <button
-              onClick={handleClearData}
-              className="px-6 py-3 bg-gray-600 text-white font-semibold rounded-xl shadow-lg hover:bg-gray-700 transition-all duration-200"
-            >
-              Clear Data
-            </button>
+            <>
+              <button
+                onClick={handleClearData}
+                className="px-6 py-3 bg-gray-600 text-white font-semibold rounded-xl shadow-lg hover:bg-gray-700 transition-all duration-200"
+              >
+                Clear Data
+              </button>
+              <PresentationGenerator metrics={metrics} seniors={seniors} teams={teams} />
+            </>
           )}
         </div>
 
