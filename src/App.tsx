@@ -12,7 +12,7 @@ import { AgentAnalytics } from './components/AgentAnalytics';
 import type { Team, Metrics, FileUploadState, TimeSeriesData } from './types';
 import { findAgentColumn, countByAgent } from './utils/csvParser';
 import type { CSVRow } from './utils/csvParser';
-import { loadTeams, saveTeams, loadSeniors, saveSeniors, loadMetrics, saveMetrics, clearMetrics, loadTimeSeriesData, saveTimeSeriesData, clearTimeSeriesData } from './utils/storage';
+import { loadTeams, saveTeams, loadSeniors, saveSeniors, loadMetrics, saveMetrics, clearMetrics, loadTimeSeriesData, saveTimeSeriesData, clearTimeSeriesData, loadRawParsedData, saveRawParsedData, clearRawParsedData, type RawParsedData } from './utils/storage';
 import { countByAgentAndDate, buildAgentTimeSeries, buildTimeSeriesData } from './utils/timeSeriesUtils';
 
 // Helper to parse date from various formats (Excel serial, string formats)
@@ -218,6 +218,7 @@ function App() {
   const [seniors, setSeniors] = useState<string[]>([]);
   const [metrics, setMetrics] = useState<Metrics[]>([]);
   const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData | null>(null);
+  const [rawParsedData, setRawParsedData] = useState<RawParsedData | null>(null);
   const [activeView, setActiveView] = useState<'summary' | 'trends'>('summary');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -229,6 +230,7 @@ function App() {
     setSeniors(loadSeniors());
     setMetrics(loadMetrics());
     setTimeSeriesData(loadTimeSeriesData());
+    setRawParsedData(loadRawParsedData());
   }, []);
 
   const handleTeamsChange = useCallback((newTeams: Team[]) => {
@@ -250,7 +252,10 @@ function App() {
   );
 
   const processFiles = useCallback(async () => {
-    if (!files.trips || !files.quotes || !files.passthroughs || !files.hotPass || !files.bookings || !files.nonConverted) {
+    const hasAllFiles = files.trips && files.quotes && files.passthroughs && files.hotPass && files.bookings && files.nonConverted;
+    const hasStoredData = rawParsedData !== null;
+
+    if (!hasAllFiles && !hasStoredData) {
       setError('Please upload all six files');
       return;
     }
@@ -259,14 +264,44 @@ function App() {
     setError(null);
 
     try {
-      const [tripsRows, quotesRows, passthroughsRows, hotPassRows, bookingsRows, nonConvertedRows] = await Promise.all([
-        parseExcelFile(files.trips),
-        parseExcelFile(files.quotes),
-        parseExcelFile(files.passthroughs),
-        parseExcelFile(files.hotPass),
-        parseExcelFile(files.bookings),
-        parseExcelFile(files.nonConverted),
-      ]);
+      let tripsRows: CSVRow[];
+      let quotesRows: CSVRow[];
+      let passthroughsRows: CSVRow[];
+      let hotPassRows: CSVRow[];
+      let bookingsRows: CSVRow[];
+      let nonConvertedRows: CSVRow[];
+
+      if (hasAllFiles) {
+        // Parse new files and save to storage
+        [tripsRows, quotesRows, passthroughsRows, hotPassRows, bookingsRows, nonConvertedRows] = await Promise.all([
+          parseExcelFile(files.trips!),
+          parseExcelFile(files.quotes!),
+          parseExcelFile(files.passthroughs!),
+          parseExcelFile(files.hotPass!),
+          parseExcelFile(files.bookings!),
+          parseExcelFile(files.nonConverted!),
+        ]);
+
+        // Save raw data for future use (before date filtering)
+        const newRawData: RawParsedData = {
+          trips: tripsRows,
+          quotes: quotesRows,
+          passthroughs: passthroughsRows,
+          hotPass: hotPassRows,
+          bookings: bookingsRows,
+          nonConverted: nonConvertedRows,
+        };
+        saveRawParsedData(newRawData);
+        setRawParsedData(newRawData);
+      } else {
+        // Use stored raw data
+        tripsRows = rawParsedData!.trips;
+        quotesRows = rawParsedData!.quotes;
+        passthroughsRows = rawParsedData!.passthroughs;
+        hotPassRows = rawParsedData!.hotPass;
+        bookingsRows = rawParsedData!.bookings;
+        nonConvertedRows = rawParsedData!.nonConverted;
+      }
 
       console.log('Trips rows:', tripsRows.length, 'First row:', tripsRows[0]);
       console.log('Quotes rows:', quotesRows.length, 'First row:', quotesRows[0]);
@@ -372,7 +407,8 @@ function App() {
       // - Then divide by total trips for that agent
       const nonConvertedCounts = new Map<string, number>();
 
-      if (files.nonConverted) {
+      if (hasAllFiles && files.nonConverted) {
+        // Parse directly from file for fresh uploads
         const buffer = await files.nonConverted.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
@@ -437,6 +473,26 @@ function App() {
           });
         } else {
           console.log('Could not find required columns in Non-Converted file');
+        }
+      } else if (nonConvertedRows.length > 0) {
+        // Use stored parsed data - extract counts from parsed rows
+        const leadOwnerCol = Object.keys(nonConvertedRows[0] || {}).find(k => k.includes('lead owner') || k.includes('_agent'));
+        const nonValidatedCol = Object.keys(nonConvertedRows[0] || {}).find(k => k.includes('non validated reason'));
+
+        if (leadOwnerCol && nonValidatedCol) {
+          let currentAgent = '';
+          for (const row of nonConvertedRows) {
+            const leadOwner = (row[leadOwnerCol] || '').trim();
+            const nonValidatedReason = (row[nonValidatedCol] || '').trim();
+
+            if (leadOwner && leadOwner !== '') {
+              currentAgent = leadOwner;
+            }
+
+            if (currentAgent && nonValidatedReason && nonValidatedReason !== '') {
+              nonConvertedCounts.set(currentAgent, (nonConvertedCounts.get(currentAgent) || 0) + 1);
+            }
+          }
         }
       }
 
@@ -547,13 +603,15 @@ function App() {
     } finally {
       setIsProcessing(false);
     }
-  }, [files, startDate, endDate]);
+  }, [files, startDate, endDate, rawParsedData]);
 
   const handleClearData = useCallback(() => {
     setMetrics([]);
     clearMetrics();
     setTimeSeriesData(null);
     clearTimeSeriesData();
+    setRawParsedData(null);
+    clearRawParsedData();
     setFiles({
       passthroughs: null,
       trips: null,
@@ -571,6 +629,8 @@ function App() {
 
   const allAgentNames = metrics.map((m) => m.agentName);
   const allFilesUploaded = files.trips && files.quotes && files.passthroughs && files.hotPass && files.bookings && files.nonConverted;
+  const hasStoredData = rawParsedData !== null;
+  const canAnalyze = allFilesUploaded || hasStoredData;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -671,7 +731,7 @@ function App() {
         <div className="flex justify-center gap-4 mb-8">
           <button
             onClick={processFiles}
-            disabled={!allFilesUploaded || isProcessing}
+            disabled={!canAnalyze || isProcessing}
             className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-xl shadow-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 disabled:hover:scale-100"
           >
             {isProcessing ? (
