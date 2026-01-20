@@ -6,10 +6,12 @@ import { TeamManagement } from './components/TeamManagement';
 import { TeamComparison } from './components/TeamComparison';
 import { DateRangeFilter } from './components/DateRangeFilter';
 import { SeniorManagement } from './components/SeniorManagement';
-import type { Team, Metrics, FileUploadState } from './types';
+import { TrendsView } from './components/TrendsView';
+import type { Team, Metrics, FileUploadState, TimeSeriesData } from './types';
 import { findAgentColumn, countByAgent } from './utils/csvParser';
 import type { CSVRow } from './utils/csvParser';
-import { loadTeams, saveTeams, loadSeniors, saveSeniors, loadMetrics, saveMetrics, clearMetrics } from './utils/storage';
+import { loadTeams, saveTeams, loadSeniors, saveSeniors, loadMetrics, saveMetrics, clearMetrics, loadTimeSeriesData, saveTimeSeriesData, clearTimeSeriesData } from './utils/storage';
+import { countByAgentAndDate, buildAgentTimeSeries, buildTimeSeriesData } from './utils/timeSeriesUtils';
 
 // Helper to parse date from various formats (Excel serial, string formats)
 const parseDate = (value: string): Date | null => {
@@ -213,6 +215,8 @@ function App() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [seniors, setSeniors] = useState<string[]>([]);
   const [metrics, setMetrics] = useState<Metrics[]>([]);
+  const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData | null>(null);
+  const [activeView, setActiveView] = useState<'summary' | 'trends'>('summary');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string>('');
@@ -222,6 +226,7 @@ function App() {
     setTeams(loadTeams());
     setSeniors(loadSeniors());
     setMetrics(loadMetrics());
+    setTimeSeriesData(loadTimeSeriesData());
   }, []);
 
   const handleTeamsChange = useCallback((newTeams: Team[]) => {
@@ -493,6 +498,48 @@ function App() {
 
       setMetrics(calculatedMetrics);
       saveMetrics(calculatedMetrics);
+
+      // Build time-series data (counts by agent AND date)
+      const tripsCountsByDate = tripsAgentCol && tripsDateCol
+        ? countByAgentAndDate(tripsRows, tripsAgentCol, tripsDateCol, parseDate)
+        : new Map<string, Map<string, number>>();
+      const quotesCountsByDate = quotesAgentCol && quotesDateCol
+        ? countByAgentAndDate(quotesRows, quotesAgentCol, quotesDateCol, parseDate)
+        : new Map<string, Map<string, number>>();
+      const passthroughsCountsByDate = passthroughsAgentCol && passthroughsDateCol
+        ? countByAgentAndDate(passthroughsRows, passthroughsAgentCol, passthroughsDateCol, parseDate)
+        : new Map<string, Map<string, number>>();
+      const hotPassCountsByDate = hotPassAgentCol && hotPassDateCol
+        ? countByAgentAndDate(hotPassRows, hotPassAgentCol, hotPassDateCol, parseDate)
+        : new Map<string, Map<string, number>>();
+      const bookingsCountsByDate = bookingsAgentCol && bookingsDateCol
+        ? countByAgentAndDate(bookingsRows, bookingsAgentCol, bookingsDateCol, parseDate)
+        : new Map<string, Map<string, number>>();
+
+      // For non-converted, we need to count by date too - but the file has a special format
+      // We'll build it from the nonConvertedCounts but without date info for now
+      // Since it's a grouped report without individual dates per row
+      const nonConvertedCountsByDate = new Map<string, Map<string, number>>();
+      // Copy the agent totals but without date breakdown (they'll show as 'unknown' date)
+      nonConvertedCounts.forEach((count, agent) => {
+        const dateMap = new Map<string, number>();
+        dateMap.set('unknown', count);
+        nonConvertedCountsByDate.set(agent, dateMap);
+      });
+
+      const agentTimeSeries = buildAgentTimeSeries(
+        tripsCountsByDate,
+        quotesCountsByDate,
+        passthroughsCountsByDate,
+        hotPassCountsByDate,
+        bookingsCountsByDate,
+        nonConvertedCountsByDate
+      );
+
+      // Build and save time-series data
+      const tsData = buildTimeSeriesData(agentTimeSeries, seniors);
+      setTimeSeriesData(tsData);
+      saveTimeSeriesData(tsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while processing files');
     } finally {
@@ -503,6 +550,8 @@ function App() {
   const handleClearData = useCallback(() => {
     setMetrics([]);
     clearMetrics();
+    setTimeSeriesData(null);
+    clearTimeSeriesData();
     setFiles({
       passthroughs: null,
       trips: null,
@@ -652,23 +701,59 @@ function App() {
           </div>
         )}
 
-        <div className="space-y-8">
-          <TeamManagement
-            teams={teams}
-            onTeamsChange={handleTeamsChange}
-            availableAgents={allAgentNames}
-          />
+        {/* View Toggle Tabs */}
+        {metrics.length > 0 && (
+          <div className="flex justify-center mb-8">
+            <div className="bg-slate-800/50 rounded-xl p-1 flex gap-1">
+              <button
+                onClick={() => setActiveView('summary')}
+                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                  activeView === 'summary'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                }`}
+              >
+                Summary
+              </button>
+              <button
+                onClick={() => setActiveView('trends')}
+                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                  activeView === 'trends'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                }`}
+              >
+                Trends
+              </button>
+            </div>
+          </div>
+        )}
 
-          <SeniorManagement
-            seniors={seniors}
-            onSeniorsChange={handleSeniorsChange}
-            availableAgents={allAgentNames}
-          />
+        {/* Summary View */}
+        {activeView === 'summary' && (
+          <div className="space-y-8">
+            <TeamManagement
+              teams={teams}
+              onTeamsChange={handleTeamsChange}
+              availableAgents={allAgentNames}
+            />
 
-          <TeamComparison metrics={metrics} teams={teams} seniors={seniors} />
+            <SeniorManagement
+              seniors={seniors}
+              onSeniorsChange={handleSeniorsChange}
+              availableAgents={allAgentNames}
+            />
 
-          <ResultsTable metrics={metrics} teams={teams} seniors={seniors} />
-        </div>
+            <TeamComparison metrics={metrics} teams={teams} seniors={seniors} />
+
+            <ResultsTable metrics={metrics} teams={teams} seniors={seniors} />
+          </div>
+        )}
+
+        {/* Trends View */}
+        {activeView === 'trends' && timeSeriesData && (
+          <TrendsView timeSeriesData={timeSeriesData} seniors={seniors} />
+        )}
       </div>
     </div>
   );

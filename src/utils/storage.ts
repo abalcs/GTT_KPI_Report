@@ -1,8 +1,10 @@
-import type { Team, Metrics } from '../types';
+import type { Team, Metrics, TimeSeriesData, ChartConfig } from '../types';
 
 const TEAMS_STORAGE_KEY = 'kpi-report-teams';
 const SENIORS_STORAGE_KEY = 'kpi-report-seniors';
 const METRICS_STORAGE_KEY = 'kpi-report-metrics';
+const TIMESERIES_STORAGE_KEY = 'kpi-report-timeseries';
+const CHART_CONFIG_STORAGE_KEY = 'kpi-report-chart-config';
 
 export const loadTeams = (): Team[] => {
   try {
@@ -69,5 +71,53 @@ export const clearMetrics = (): void => {
     localStorage.removeItem(METRICS_STORAGE_KEY);
   } catch (error) {
     console.error('Failed to clear metrics from storage:', error);
+  }
+};
+
+export const loadTimeSeriesData = (): TimeSeriesData | null => {
+  try {
+    const stored = localStorage.getItem(TIMESERIES_STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('Failed to load time series data from storage:', error);
+  }
+  return null;
+};
+
+export const saveTimeSeriesData = (data: TimeSeriesData): void => {
+  try {
+    localStorage.setItem(TIMESERIES_STORAGE_KEY, JSON.stringify(data));
+  } catch (error) {
+    console.error('Failed to save time series data to storage:', error);
+  }
+};
+
+export const clearTimeSeriesData = (): void => {
+  try {
+    localStorage.removeItem(TIMESERIES_STORAGE_KEY);
+  } catch (error) {
+    console.error('Failed to clear time series data from storage:', error);
+  }
+};
+
+export const loadChartConfig = (): ChartConfig | null => {
+  try {
+    const stored = localStorage.getItem(CHART_CONFIG_STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('Failed to load chart config from storage:', error);
+  }
+  return null;
+};
+
+export const saveChartConfig = (config: ChartConfig): void => {
+  try {
+    localStorage.setItem(CHART_CONFIG_STORAGE_KEY, JSON.stringify(config));
+  } catch (error) {
+    console.error('Failed to save chart config to storage:', error);
   }
 };

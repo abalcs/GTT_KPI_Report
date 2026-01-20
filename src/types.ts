@@ -43,3 +43,49 @@ export interface FileUploadState {
 export interface SeniorDesignation {
   agentNames: string[];
 }
+
+// Time-series types for trends visualization
+export interface DailyAgentMetrics {
+  date: string; // YYYY-MM-DD
+  trips: number;
+  quotes: number;
+  passthroughs: number;
+  hotPasses: number;
+  bookings: number;
+  nonConverted: number;
+}
+
+export interface AgentTimeSeries {
+  agentName: string;
+  dailyMetrics: DailyAgentMetrics[];
+}
+
+export interface DailyRatioPoint {
+  date: string;
+  tq: number;  // T>Q %
+  tp: number;  // T>P %
+  pq: number;  // P>Q %
+  hp: number;  // Hot Pass % (hot passes / passthroughs)
+  bk: number;  // Bookings % (bookings / trips)
+  nc: number;  // Non-Converted % (non-converted / trips)
+}
+
+export type MetricKey = 'tq' | 'tp' | 'pq' | 'hp' | 'bk' | 'nc';
+
+export interface TimeSeriesData {
+  dateRange: { start: string; end: string };
+  agents: AgentTimeSeries[];
+  departmentDaily: DailyRatioPoint[];
+  seniorDaily: DailyRatioPoint[];
+  nonSeniorDaily: DailyRatioPoint[];
+}
+
+export interface ChartConfig {
+  selectedAgents: string[];
+  selectedMetrics: MetricKey[];
+  showDeptAvg: boolean;
+  showSeniorAvg: boolean;
+  showNonSeniorAvg: boolean;
+  dateRangeStart: number; // Index into date array
+  dateRangeEnd: number;
+}
