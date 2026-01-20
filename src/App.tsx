@@ -8,6 +8,7 @@ import { DateRangeFilter } from './components/DateRangeFilter';
 import { SeniorManagement } from './components/SeniorManagement';
 import { TrendsView } from './components/TrendsView';
 import { PresentationGenerator } from './components/PresentationGenerator';
+import { AgentAnalytics } from './components/AgentAnalytics';
 import type { Team, Metrics, FileUploadState, TimeSeriesData } from './types';
 import { findAgentColumn, countByAgent } from './utils/csvParser';
 import type { CSVRow } from './utils/csvParser';
@@ -747,6 +748,10 @@ function App() {
               onSeniorsChange={handleSeniorsChange}
               availableAgents={allAgentNames}
             />
+
+            {metrics.length > 0 && (
+              <AgentAnalytics metrics={metrics} seniors={seniors} />
+            )}
 
             <TeamComparison metrics={metrics} teams={teams} seniors={seniors} />
 

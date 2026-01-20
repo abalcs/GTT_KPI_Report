@@ -89,3 +89,23 @@ export interface ChartConfig {
   dateRangeStart: number; // Index into date array
   dateRangeEnd: number;
 }
+
+export interface AgentAnalysis {
+  agentName: string;
+  analysis: string;
+  generatedAt: Date;
+}
+
+export interface DepartmentAverages {
+  avgTrips: number;
+  avgQuotes: number;
+  avgPassthroughs: number;
+  avgHotPasses: number;
+  avgBookings: number;
+  avgNonConverted: number;
+  avgTQ: number;       // T>Q %
+  avgTP: number;       // T>P %
+  avgPQ: number;       // P>Q %
+  avgHotPassRate: number;
+  avgNonConvertedRate: number;
+}
