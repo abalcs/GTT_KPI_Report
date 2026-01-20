@@ -94,6 +94,12 @@ export const findDateColumn = (row: CSVRow, patterns: string[]): string | null =
   return null;
 };
 
+// Parse date string to comparable integer (YYYYMMDD format) to avoid timezone issues
+const dateToInt = (dateStr: string): number => {
+  // dateStr is in YYYY-MM-DD format
+  return parseInt(dateStr.replace(/-/g, ''), 10);
+};
+
 // Optimized counting with single pass for both total and by-date
 export const countByAgentOptimized = (
   rows: CSVRow[],
@@ -105,25 +111,30 @@ export const countByAgentOptimized = (
   const total = new Map<string, number>();
   const byDate = new Map<string, Map<string, number>>();
 
-  const startTime = startDate ? new Date(startDate).getTime() : null;
-  const endTime = endDate ? new Date(endDate + 'T23:59:59').getTime() : null;
+  // Convert filter dates to integers for comparison (avoids timezone issues)
+  const startInt = startDate ? dateToInt(startDate) : null;
+  const endInt = endDate ? dateToInt(endDate) : null;
+  const hasDateFilter = startInt !== null || endInt !== null;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const agent = row[agentColumn];
     if (!agent) continue;
 
-    // Parse and filter by date if needed
+    // Parse date
     let dateStr: string | null = null;
     if (dateColumn && row[dateColumn]) {
       dateStr = parseDate(row[dateColumn]);
+    }
 
-      // Apply date filter
-      if (dateStr && (startTime || endTime)) {
-        const rowTime = new Date(dateStr).getTime();
-        if (startTime && rowTime < startTime) continue;
-        if (endTime && rowTime > endTime) continue;
-      }
+    // Apply date filter if active
+    if (hasDateFilter) {
+      // If date filter is active but row has no valid date, skip the row
+      if (!dateStr) continue;
+
+      const rowInt = dateToInt(dateStr);
+      if (startInt && rowInt < startInt) continue;
+      if (endInt && rowInt > endInt) continue;
     }
 
     // Count total
@@ -197,9 +208,10 @@ export const countNonConvertedOptimized = (
 
   if (!leadOwnerCol || !nonValidatedCol) return counts;
 
-  const startTime = startDate ? new Date(startDate).getTime() : null;
-  const endTime = endDate ? new Date(endDate + 'T23:59:59').getTime() : null;
-  const hasDateFilter = startTime || endTime;
+  // Use integer comparison to avoid timezone issues
+  const startInt = startDate ? dateToInt(startDate) : null;
+  const endInt = endDate ? dateToInt(endDate) : null;
+  const hasDateFilter = startInt !== null || endInt !== null;
 
   let currentAgent = '';
 
@@ -236,9 +248,9 @@ export const countNonConvertedOptimized = (
 
       // Apply date filter if we found a date
       if (dateStr) {
-        const rowTime = new Date(dateStr).getTime();
-        if (startTime && rowTime < startTime) continue;
-        if (endTime && rowTime > endTime) continue;
+        const rowInt = dateToInt(dateStr);
+        if (startInt && rowInt < startInt) continue;
+        if (endInt && rowInt > endInt) continue;
       } else {
         // No date found - can't filter this row, so skip it when date filter is active
         continue;

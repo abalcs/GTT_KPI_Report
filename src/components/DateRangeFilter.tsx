@@ -75,9 +75,14 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         </div>
       </div>
 
-      <p className="mt-4 text-xs text-slate-500">
-        Filters by Trip Created Date, Passthrough to Sales Date, and Quote First Sent Date
-      </p>
+      <div className="mt-4 space-y-1">
+        <p className="text-xs text-slate-500">
+          Filters by Trip Created Date, Passthrough to Sales Date, and Quote First Sent Date.
+        </p>
+        <p className="text-xs text-slate-400">
+          <strong>Tip:</strong> Both dates are inclusive. For a single day (e.g., Jan 18), set both Start and End to the same date.
+        </p>
+      </div>
     </div>
   );
 };
