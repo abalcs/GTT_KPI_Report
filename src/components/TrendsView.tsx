@@ -59,9 +59,10 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
     };
   });
 
-  // Regression state - default to 50% which is more realistic for noisy daily data
+  // Regression state - default to 10% which is more realistic for noisy daily data
   const [showTrendLines, setShowTrendLines] = useState(false);
   const [rSquaredThreshold, setRSquaredThreshold] = useState(0.10);
+  const [hideRawData, setHideRawData] = useState(false);
 
   // Save config when it changes
   useEffect(() => {
@@ -354,20 +355,32 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
               Trend Lines {showTrendLines && `(${regressions.size} fit)`}
             </button>
             {showTrendLines && (
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-xs text-slate-400">R² ≥</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={0.99}
-                  step={0.01}
-                  value={rSquaredThreshold}
-                  onChange={(e) => setRSquaredThreshold(parseFloat(e.target.value))}
-                  className="w-24 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                />
-                <span className="text-xs text-emerald-400 font-mono w-12">
-                  {(rSquaredThreshold * 100).toFixed(0)}%
-                </span>
+              <div className="space-y-2 mt-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">R² ≥</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={0.99}
+                    step={0.01}
+                    value={rSquaredThreshold}
+                    onChange={(e) => setRSquaredThreshold(parseFloat(e.target.value))}
+                    className="w-24 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                  />
+                  <span className="text-xs text-emerald-400 font-mono w-12">
+                    {(rSquaredThreshold * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <button
+                  onClick={() => setHideRawData(!hideRawData)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    hideRawData
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                  }`}
+                >
+                  {hideRawData ? 'Show Raw Data' : 'Hide Raw Data'}
+                </button>
               </div>
             )}
           </div>
@@ -469,7 +482,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
               />
 
               {/* Agent lines */}
-              {config.selectedAgents.map((agent) =>
+              {!hideRawData && config.selectedAgents.map((agent) =>
                 config.selectedMetrics.map((metric) => (
                   <Line
                     key={`${agent}_${metric}`}
@@ -494,7 +507,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
               )}
 
               {/* Average lines */}
-              {config.showDeptAvg &&
+              {!hideRawData && config.showDeptAvg &&
                 config.selectedMetrics.map((metric) => (
                   <Line
                     key={`dept_${metric}`}
@@ -509,7 +522,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                   />
                 ))}
 
-              {config.showSeniorAvg &&
+              {!hideRawData && config.showSeniorAvg &&
                 config.selectedMetrics.map((metric) => (
                   <Line
                     key={`senior_${metric}`}
@@ -524,7 +537,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                   />
                 ))}
 
-              {config.showNonSeniorAvg &&
+              {!hideRawData && config.showNonSeniorAvg &&
                 config.selectedMetrics.map((metric) => (
                   <Line
                     key={`nonsenior_${metric}`}
