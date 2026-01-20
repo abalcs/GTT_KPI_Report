@@ -11,6 +11,7 @@ import {
 import type { TimeSeriesData, ChartConfig, MetricKey } from '../types';
 import { mergeSeriesForChart, getAgentColor, getAllDates } from '../utils/timeSeriesUtils';
 import { loadChartConfig, saveChartConfig } from '../utils/storage';
+import { calculateSeriesRegression, type RegressionResult } from '../utils/regression';
 
 interface TrendsViewProps {
   timeSeriesData: TimeSeriesData;
@@ -58,6 +59,10 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
     };
   });
 
+  // Regression state
+  const [showTrendLines, setShowTrendLines] = useState(false);
+  const [rSquaredThreshold, setRSquaredThreshold] = useState(0.95);
+
   // Save config when it changes
   useEffect(() => {
     saveChartConfig(config);
@@ -76,6 +81,70 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
       config.dateRangeEnd
     );
   }, [timeSeriesData, config]);
+
+  // Calculate regressions for all visible series
+  const regressions = useMemo(() => {
+    if (!showTrendLines || chartData.length < 3) return new Map<string, RegressionResult>();
+
+    const results = new Map<string, RegressionResult>();
+
+    // Calculate for agent series
+    for (const agent of config.selectedAgents) {
+      for (const metric of config.selectedMetrics) {
+        const key = `${agent}_${metric}`;
+        const regression = calculateSeriesRegression(chartData, key, rSquaredThreshold);
+        if (regression) {
+          results.set(key, regression);
+        }
+      }
+    }
+
+    // Calculate for average lines
+    if (config.showDeptAvg) {
+      for (const metric of config.selectedMetrics) {
+        const key = `dept_${metric}`;
+        const regression = calculateSeriesRegression(chartData, key, rSquaredThreshold);
+        if (regression) {
+          results.set(key, regression);
+        }
+      }
+    }
+
+    if (config.showSeniorAvg) {
+      for (const metric of config.selectedMetrics) {
+        const key = `senior_${metric}`;
+        const regression = calculateSeriesRegression(chartData, key, rSquaredThreshold);
+        if (regression) {
+          results.set(key, regression);
+        }
+      }
+    }
+
+    if (config.showNonSeniorAvg) {
+      for (const metric of config.selectedMetrics) {
+        const key = `nonsenior_${metric}`;
+        const regression = calculateSeriesRegression(chartData, key, rSquaredThreshold);
+        if (regression) {
+          results.set(key, regression);
+        }
+      }
+    }
+
+    return results;
+  }, [chartData, config, showTrendLines, rSquaredThreshold]);
+
+  // Merge trend line data into chart data
+  const chartDataWithTrends = useMemo(() => {
+    if (!showTrendLines || regressions.size === 0) return chartData;
+
+    return chartData.map((point, index) => {
+      const newPoint = { ...point };
+      regressions.forEach((regression, key) => {
+        newPoint[`${key}_trend`] = regression.predictedValues[index];
+      });
+      return newPoint;
+    });
+  }, [chartData, regressions, showTrendLines]);
 
   // Toggle agent selection
   const toggleAgent = useCallback((agentName: string) => {
@@ -268,6 +337,40 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
               Non-Senior Avg
             </button>
           </div>
+
+          {/* Trend Lines */}
+          <label className="text-sm font-medium text-slate-300 block mt-4">
+            Trend Analysis
+          </label>
+          <div className="space-y-2">
+            <button
+              onClick={() => setShowTrendLines(!showTrendLines)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                showTrendLines
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+              }`}
+            >
+              Trend Lines {showTrendLines && `(${regressions.size} fit)`}
+            </button>
+            {showTrendLines && (
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs text-slate-400">R² ≥</span>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={0.99}
+                  step={0.01}
+                  value={rSquaredThreshold}
+                  onChange={(e) => setRSquaredThreshold(parseFloat(e.target.value))}
+                  className="w-20 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                />
+                <span className="text-xs text-emerald-400 font-mono w-12">
+                  {(rSquaredThreshold * 100).toFixed(0)}%
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Date Range */}
@@ -319,13 +422,13 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
 
       {/* Chart */}
       <div className="bg-slate-900/50 rounded-xl p-4">
-        {chartData.length === 0 || config.selectedAgents.length === 0 ? (
+        {chartDataWithTrends.length === 0 || config.selectedAgents.length === 0 ? (
           <div className="h-96 flex items-center justify-center text-slate-400">
             Select at least one agent to view trends
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={500}>
-            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+            <LineChart data={chartDataWithTrends} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
               <XAxis
                 dataKey="date"
                 tickFormatter={formatDate}
@@ -435,10 +538,150 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                     connectNulls
                   />
                 ))}
+
+              {/* Trend lines */}
+              {showTrendLines &&
+                config.selectedAgents.map((agent) =>
+                  config.selectedMetrics.map((metric) => {
+                    const key = `${agent}_${metric}`;
+                    const regression = regressions.get(key);
+                    if (!regression) return null;
+                    return (
+                      <Line
+                        key={`${key}_trend`}
+                        type="linear"
+                        dataKey={`${key}_trend`}
+                        name={`${key}_trend`}
+                        stroke={getAgentColor(allAgents.indexOf(agent))}
+                        strokeWidth={2}
+                        strokeDasharray="4 2"
+                        strokeOpacity={0.7}
+                        dot={false}
+                        connectNulls
+                        legendType="none"
+                      />
+                    );
+                  })
+                )}
+
+              {/* Trend lines for averages */}
+              {showTrendLines && config.showDeptAvg &&
+                config.selectedMetrics.map((metric) => {
+                  const key = `dept_${metric}`;
+                  const regression = regressions.get(key);
+                  if (!regression) return null;
+                  return (
+                    <Line
+                      key={`${key}_trend`}
+                      type="linear"
+                      dataKey={`${key}_trend`}
+                      name={`${key}_trend`}
+                      stroke="#6B7280"
+                      strokeWidth={2}
+                      strokeDasharray="2 2"
+                      strokeOpacity={0.7}
+                      dot={false}
+                      connectNulls
+                      legendType="none"
+                    />
+                  );
+                })}
+
+              {showTrendLines && config.showSeniorAvg &&
+                config.selectedMetrics.map((metric) => {
+                  const key = `senior_${metric}`;
+                  const regression = regressions.get(key);
+                  if (!regression) return null;
+                  return (
+                    <Line
+                      key={`${key}_trend`}
+                      type="linear"
+                      dataKey={`${key}_trend`}
+                      name={`${key}_trend`}
+                      stroke="#F59E0B"
+                      strokeWidth={2}
+                      strokeDasharray="2 2"
+                      strokeOpacity={0.7}
+                      dot={false}
+                      connectNulls
+                      legendType="none"
+                    />
+                  );
+                })}
+
+              {showTrendLines && config.showNonSeniorAvg &&
+                config.selectedMetrics.map((metric) => {
+                  const key = `nonsenior_${metric}`;
+                  const regression = regressions.get(key);
+                  if (!regression) return null;
+                  return (
+                    <Line
+                      key={`${key}_trend`}
+                      type="linear"
+                      dataKey={`${key}_trend`}
+                      name={`${key}_trend`}
+                      stroke="#94A3B8"
+                      strokeWidth={2}
+                      strokeDasharray="2 2"
+                      strokeOpacity={0.7}
+                      dot={false}
+                      connectNulls
+                      legendType="none"
+                    />
+                  );
+                })}
             </LineChart>
           </ResponsiveContainer>
         )}
       </div>
+
+      {/* R² Statistics Panel */}
+      {showTrendLines && regressions.size > 0 && (
+        <div className="bg-slate-900/50 rounded-xl p-4">
+          <h3 className="text-sm font-medium text-slate-300 mb-3">
+            Regression Analysis (R² ≥ {(rSquaredThreshold * 100).toFixed(0)}%)
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {Array.from(regressions.entries()).map(([key, regression]) => {
+              const parts = key.split('_');
+              const metric = parts[parts.length - 1];
+              const name = parts.slice(0, -1).join('_');
+              const displayName = name === 'dept' ? 'Department'
+                : name === 'senior' ? 'Senior Avg'
+                : name === 'nonsenior' ? 'Non-Senior Avg'
+                : name;
+
+              return (
+                <div
+                  key={key}
+                  className="bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700/50"
+                >
+                  <div className="text-xs text-slate-400 truncate">
+                    {displayName} ({METRIC_LABELS[metric as MetricKey]})
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-lg font-semibold text-emerald-400">
+                      {(regression.rSquared * 100).toFixed(1)}%
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {regression.type === 'log-linear' ? 'exp' : 'linear'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {regression.slope > 0 ? '↗' : '↘'} {regression.slope > 0 ? '+' : ''}{regression.slope.toFixed(3)}/day
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {regressions.size === 0 && (
+            <p className="text-slate-500 text-sm">
+              No series meet the R² threshold of {(rSquaredThreshold * 100).toFixed(0)}%.
+              Try lowering the threshold.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Legend explanation */}
       <div className="text-xs text-slate-500 flex flex-wrap gap-4">
