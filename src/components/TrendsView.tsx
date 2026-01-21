@@ -135,26 +135,16 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
     return { minIdx, maxIdx };
   }, [config.selectedAgents, agentDateRanges, allDates.length]);
 
-  // Track previous selected agents to detect changes (use serialized string for reliable comparison)
-  const [prevAgentsKey, setPrevAgentsKey] = useState<string>('');
+  // Fit date range to selected agents
+  const fitDateRangeToSelection = useCallback(() => {
+    if (config.selectedAgents.length === 0) return;
 
-  // Auto-adjust date range when agents are selected
-  useEffect(() => {
-    const currentAgentsKey = [...config.selectedAgents].sort().join(',');
-
-    if (currentAgentsKey !== prevAgentsKey) {
-      setPrevAgentsKey(currentAgentsKey);
-
-      // Only auto-adjust if there are selected agents
-      if (config.selectedAgents.length > 0) {
-        setConfig((prev) => ({
-          ...prev,
-          dateRangeStart: selectedAgentsDateRange.minIdx,
-          dateRangeEnd: selectedAgentsDateRange.maxIdx,
-        }));
-      }
-    }
-  }, [config.selectedAgents, selectedAgentsDateRange, prevAgentsKey]);
+    setConfig((prev) => ({
+      ...prev,
+      dateRangeStart: selectedAgentsDateRange.minIdx,
+      dateRangeEnd: selectedAgentsDateRange.maxIdx,
+    }));
+  }, [config.selectedAgents.length, selectedAgentsDateRange]);
 
   // Prepare chart data
   const chartData = useMemo(() => {
@@ -708,13 +698,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
             <label className="text-sm font-medium text-slate-300">Date Range</label>
             {config.selectedAgents.length > 0 && (
               <button
-                onClick={() => {
-                  setConfig((prev) => ({
-                    ...prev,
-                    dateRangeStart: selectedAgentsDateRange.minIdx,
-                    dateRangeEnd: selectedAgentsDateRange.maxIdx,
-                  }));
-                }}
+                onClick={fitDateRangeToSelection}
                 className="text-xs text-indigo-400 hover:text-indigo-300"
                 title="Fit date range to selected agents"
               >
