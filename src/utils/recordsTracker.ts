@@ -69,11 +69,29 @@ export interface AllRecords {
 
 const STORAGE_KEY = 'gtt-agent-records';
 
+// Migrate old records to include 'day' field for volume metrics
+const migrateRecords = (records: AllRecords): AllRecords => {
+  const volumeMetrics: VolumeMetric[] = ['trips', 'quotes', 'passthroughs'];
+
+  for (const agentName of Object.keys(records.agents)) {
+    const agent = records.agents[agentName];
+    for (const metric of volumeMetrics) {
+      // Add 'day' field if it doesn't exist
+      if (agent[metric] && !('day' in agent[metric])) {
+        (agent[metric] as { day: RecordEntry | null; week: RecordEntry | null; month: RecordEntry | null; quarter: RecordEntry | null }).day = null;
+      }
+    }
+  }
+
+  return records;
+};
+
 export const loadRecords = (): AllRecords => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      return migrateRecords(parsed);
     }
   } catch (e) {
     console.error('Failed to load records:', e);
@@ -297,7 +315,17 @@ export const analyzeAndUpdateRecords = (
       newRecords.agents[agentName] = createEmptyAgentRecords(agentName);
     }
 
-    const agentRecords = { ...newRecords.agents[agentName] };
+    // Ensure the agent record has all required fields (migration for 'day')
+    const existingRecord = newRecords.agents[agentName];
+    const agentRecords: AgentRecords = {
+      agentName,
+      trips: { day: existingRecord.trips?.day ?? null, week: existingRecord.trips?.week ?? null, month: existingRecord.trips?.month ?? null, quarter: existingRecord.trips?.quarter ?? null },
+      quotes: { day: existingRecord.quotes?.day ?? null, week: existingRecord.quotes?.week ?? null, month: existingRecord.quotes?.month ?? null, quarter: existingRecord.quotes?.quarter ?? null },
+      passthroughs: { day: existingRecord.passthroughs?.day ?? null, week: existingRecord.passthroughs?.week ?? null, month: existingRecord.passthroughs?.month ?? null, quarter: existingRecord.passthroughs?.quarter ?? null },
+      tq: { month: existingRecord.tq?.month ?? null, quarter: existingRecord.tq?.quarter ?? null },
+      tp: { month: existingRecord.tp?.month ?? null, quarter: existingRecord.tp?.quarter ?? null },
+      pq: { month: existingRecord.pq?.month ?? null, quarter: existingRecord.pq?.quarter ?? null },
+    };
 
     // Aggregate data by period
     const dailyData = aggregateByPeriod(dailyMetrics, getDayStart, getDayEnd);
