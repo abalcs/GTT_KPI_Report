@@ -42,6 +42,30 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
     [timeSeriesData]
   );
 
+  // Build agent -> dates map for efficient date range lookups
+  const agentDateRanges = useMemo(() => {
+    const ranges = new Map<string, { minIdx: number; maxIdx: number }>();
+
+    timeSeriesData.agents.forEach((agent) => {
+      const agentDates = agent.dailyMetrics
+        .filter((m) => m.date !== 'unknown')
+        .map((m) => m.date)
+        .sort();
+
+      if (agentDates.length > 0) {
+        const minDate = agentDates[0];
+        const maxDate = agentDates[agentDates.length - 1];
+        const minIdx = allDates.indexOf(minDate);
+        const maxIdx = allDates.indexOf(maxDate);
+        if (minIdx !== -1 && maxIdx !== -1) {
+          ranges.set(agent.agentName, { minIdx, maxIdx });
+        }
+      }
+    });
+
+    return ranges;
+  }, [timeSeriesData, allDates]);
+
   // Valid metrics for filtering stale configs
   const VALID_METRICS: MetricKey[] = [...ALL_PERCENT_METRICS, ...ALL_COUNT_METRICS];
 
@@ -78,10 +102,61 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
   const [outlierHandling, setOutlierHandling] = useState<'none' | 'percentile'>('percentile');
   const [showLegend, setShowLegend] = useState(true);
 
+  // UI state for collapsible sections
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+
   // Save config when it changes
   useEffect(() => {
     saveChartConfig(config);
   }, [config]);
+
+  // Calculate the date range for the currently selected agents
+  const selectedAgentsDateRange = useMemo(() => {
+    if (config.selectedAgents.length === 0) {
+      return { minIdx: 0, maxIdx: allDates.length - 1 };
+    }
+
+    let minIdx = allDates.length - 1;
+    let maxIdx = 0;
+
+    for (const agentName of config.selectedAgents) {
+      const range = agentDateRanges.get(agentName);
+      if (range) {
+        minIdx = Math.min(minIdx, range.minIdx);
+        maxIdx = Math.max(maxIdx, range.maxIdx);
+      }
+    }
+
+    // Ensure valid range
+    if (minIdx > maxIdx) {
+      return { minIdx: 0, maxIdx: allDates.length - 1 };
+    }
+
+    return { minIdx, maxIdx };
+  }, [config.selectedAgents, agentDateRanges, allDates.length]);
+
+  // Track previous selected agents to detect changes
+  const [prevSelectedAgents, setPrevSelectedAgents] = useState<string[]>([]);
+
+  // Auto-adjust date range when agents are selected
+  useEffect(() => {
+    // Check if selectedAgents actually changed (not just reference)
+    const agentsChanged =
+      prevSelectedAgents.length !== config.selectedAgents.length ||
+      prevSelectedAgents.some((a, i) => a !== config.selectedAgents[i]);
+
+    if (agentsChanged && config.selectedAgents.length > 0) {
+      setPrevSelectedAgents([...config.selectedAgents]);
+      // Auto-adjust the date range to fit the selected agents
+      setConfig((prev) => ({
+        ...prev,
+        dateRangeStart: selectedAgentsDateRange.minIdx,
+        dateRangeEnd: selectedAgentsDateRange.maxIdx,
+      }));
+    } else if (agentsChanged) {
+      setPrevSelectedAgents([...config.selectedAgents]);
+    }
+  }, [config.selectedAgents, selectedAgentsDateRange, prevSelectedAgents]);
 
   // Prepare chart data
   const chartData = useMemo(() => {
@@ -375,12 +450,13 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
       <h2 className="text-xl font-semibold text-white">Trends Over Time</h2>
 
       {/* Controls Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Agent Selection */}
-        <div className="space-y-2">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Agent Selection - 3 cols */}
+        <div className="lg:col-span-3 space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-slate-300">Agents</label>
-            <div className="space-x-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">{config.selectedAgents.length} selected</span>
               <button
                 onClick={selectAllAgents}
                 className="text-xs text-indigo-400 hover:text-indigo-300"
@@ -395,7 +471,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
               </button>
             </div>
           </div>
-          <div className="max-h-48 overflow-y-auto bg-slate-900/50 rounded-lg p-2 space-y-1">
+          <div className="max-h-64 overflow-y-auto bg-slate-900/50 rounded-lg p-2 space-y-0.5">
             {allAgents.map((agent, index) => (
               <label
                 key={agent}
@@ -408,7 +484,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                   className="rounded border-slate-600 bg-slate-700 text-indigo-500 focus:ring-indigo-500"
                 />
                 <span
-                  className="w-3 h-3 rounded-full"
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                   style={{ backgroundColor: getAgentColor(index) }}
                 />
                 <span className="text-sm text-slate-300 truncate">
@@ -422,203 +498,241 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
           </div>
         </div>
 
-        {/* Metric Selection */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-300">Rate Metrics <span className="text-slate-500">(left axis)</span></label>
-          <div className="flex flex-wrap gap-2">
-            {ALL_PERCENT_METRICS.map((metric) => (
-              <button
-                key={metric}
-                onClick={() => toggleMetric(metric)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  config.selectedMetrics.includes(metric)
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                {METRIC_LABELS[metric]}
-              </button>
-            ))}
+        {/* Metrics & Options - 6 cols */}
+        <div className="lg:col-span-6 space-y-3">
+          {/* Metrics Row */}
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">Rate Metrics</label>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {ALL_PERCENT_METRICS.map((metric) => (
+                  <button
+                    key={metric}
+                    onClick={() => toggleMetric(metric)}
+                    className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                      config.selectedMetrics.includes(metric)
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-700/70 text-slate-400 hover:bg-slate-600'
+                    }`}
+                  >
+                    {METRIC_LABELS[metric]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">Volume Metrics</label>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {ALL_COUNT_METRICS.map((metric) => (
+                  <button
+                    key={metric}
+                    onClick={() => toggleMetric(metric)}
+                    className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                      config.selectedMetrics.includes(metric)
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-700/70 text-slate-400 hover:bg-slate-600'
+                    }`}
+                  >
+                    {METRIC_LABELS[metric]}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <label className="text-sm font-medium text-slate-300 block mt-3">Volume Metrics <span className="text-slate-500">(right axis)</span></label>
-          <div className="flex flex-wrap gap-2">
-            {ALL_COUNT_METRICS.map((metric) => (
+          {/* Comparison Lines Row */}
+          <div>
+            <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">Compare Against</label>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
               <button
-                key={metric}
-                onClick={() => toggleMetric(metric)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  config.selectedMetrics.includes(metric)
+                onClick={() => toggleAvg('dept')}
+                className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                  config.showDeptAvg
+                    ? 'bg-gray-600 text-white'
+                    : 'bg-slate-700/70 text-slate-400 hover:bg-slate-600'
+                }`}
+              >
+                Dept Avg
+              </button>
+              <button
+                onClick={() => toggleAvg('senior')}
+                className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                  config.showSeniorAvg
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-slate-700/70 text-slate-400 hover:bg-slate-600'
+                }`}
+              >
+                Senior Avg
+              </button>
+              <button
+                onClick={() => toggleAvg('nonsenior')}
+                className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                  config.showNonSeniorAvg
+                    ? 'bg-slate-500 text-white'
+                    : 'bg-slate-700/70 text-slate-400 hover:bg-slate-600'
+                }`}
+              >
+                Non-Senior Avg
+              </button>
+              <button
+                onClick={() => setShowTrendLines(!showTrendLines)}
+                className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                  showTrendLines
                     ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    : 'bg-slate-700/70 text-slate-400 hover:bg-slate-600'
                 }`}
               >
-                {METRIC_LABELS[metric]}
+                Trend Lines {showTrendLines && regressions.size > 0 && `(${regressions.size})`}
               </button>
-            ))}
+            </div>
           </div>
 
-          {/* Average Lines */}
-          <label className="text-sm font-medium text-slate-300 block mt-4">
-            Average Lines
-          </label>
-          <div className="flex flex-wrap gap-2">
+          {/* Advanced Options Toggle */}
+          <div>
             <button
-              onClick={() => toggleAvg('dept')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                config.showDeptAvg
-                  ? 'bg-gray-600 text-white'
-                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-              }`}
+              onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-300 transition-colors"
             >
-              Department Avg
+              <svg
+                className={`w-3.5 h-3.5 transition-transform ${showAdvancedOptions ? 'rotate-90' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              Advanced Options
             </button>
-            <button
-              onClick={() => toggleAvg('senior')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                config.showSeniorAvg
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-              }`}
-            >
-              Senior Avg
-            </button>
-            <button
-              onClick={() => toggleAvg('nonsenior')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                config.showNonSeniorAvg
-                  ? 'bg-slate-500 text-white'
-                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-              }`}
-            >
-              Non-Senior Avg
-            </button>
-          </div>
 
-          {/* Trend Lines */}
-          <label className="text-sm font-medium text-slate-300 block mt-4">
-            Trend Analysis
-          </label>
-          <div className="space-y-2">
-            <button
-              onClick={() => setShowTrendLines(!showTrendLines)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                showTrendLines
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-              }`}
-            >
-              Trend Lines {showTrendLines && `(${regressions.size} fit)`}
-            </button>
-            {showTrendLines && (
-              <div className="space-y-2 mt-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400">R² ≥</span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={0.99}
-                    step={0.01}
-                    value={rSquaredThreshold}
-                    onChange={(e) => setRSquaredThreshold(parseFloat(e.target.value))}
-                    className="w-24 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                  />
-                  <span className="text-xs text-emerald-400 font-mono w-12">
-                    {(rSquaredThreshold * 100).toFixed(0)}%
-                  </span>
+            {showAdvancedOptions && (
+              <div className="mt-2 p-3 bg-slate-900/50 rounded-lg space-y-3">
+                {/* Trend Line Options */}
+                {showTrendLines && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">R² threshold:</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={0.99}
+                        step={0.01}
+                        value={rSquaredThreshold}
+                        onChange={(e) => setRSquaredThreshold(parseFloat(e.target.value))}
+                        className="w-20 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                      />
+                      <span className="text-xs text-emerald-400 font-mono">
+                        {(rSquaredThreshold * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setHideRawData(!hideRawData)}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                        hideRawData
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                      }`}
+                    >
+                      {hideRawData ? 'Show Raw' : 'Hide Raw'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Y-Axis Scaling */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-xs text-slate-400">Y-Axis:</span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setOutlierHandling('percentile')}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                        outlierHandling === 'percentile'
+                          ? 'bg-cyan-600 text-white'
+                          : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                      }`}
+                    >
+                      Smart
+                    </button>
+                    <button
+                      onClick={() => setOutlierHandling('none')}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                        outlierHandling === 'none'
+                          ? 'bg-cyan-600 text-white'
+                          : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                      }`}
+                    >
+                      Full
+                    </button>
+                  </div>
+                  {(yAxisConfig.hasPercentOutliers || yAxisConfig.hasCountOutliers) && outlierHandling === 'percentile' && (
+                    <span className="text-xs text-amber-400">Outliers trimmed</span>
+                  )}
                 </div>
-                <button
-                  onClick={() => setHideRawData(!hideRawData)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    hideRawData
-                      ? 'bg-amber-600 text-white'
-                      : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                  }`}
-                >
-                  {hideRawData ? 'Show Raw Data' : 'Hide Raw Data'}
-                </button>
+
+                {/* Display Options */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-xs text-slate-400">Display:</span>
+                  <button
+                    onClick={() => setShowLegend(!showLegend)}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      showLegend
+                        ? 'bg-slate-600 text-white'
+                        : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                    }`}
+                  >
+                    Legend
+                  </button>
+                  <button
+                    onClick={() => {
+                      setConfig({
+                        selectedAgents: allAgents.slice(0, 3),
+                        selectedMetrics: ['tq'],
+                        showDeptAvg: true,
+                        showSeniorAvg: false,
+                        showNonSeniorAvg: false,
+                        dateRangeStart: 0,
+                        dateRangeEnd: allDates.length - 1,
+                      });
+                      setShowTrendLines(false);
+                      setOutlierHandling('percentile');
+                    }}
+                    className="px-2 py-1 rounded text-xs font-medium transition-colors bg-slate-700 text-slate-400 hover:bg-red-600 hover:text-white"
+                  >
+                    Reset All
+                  </button>
+                </div>
               </div>
             )}
           </div>
-
-          {/* Outlier Handling */}
-          <label className="text-sm font-medium text-slate-300 block mt-4">
-            Y-Axis Scaling
-          </label>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setOutlierHandling('percentile')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                outlierHandling === 'percentile'
-                  ? 'bg-cyan-600 text-white'
-                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-              }`}
-            >
-              Smart Scale
-            </button>
-            <button
-              onClick={() => setOutlierHandling('none')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                outlierHandling === 'none'
-                  ? 'bg-cyan-600 text-white'
-                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-              }`}
-            >
-              Full Range
-            </button>
-          </div>
-          {(yAxisConfig.hasPercentOutliers || yAxisConfig.hasCountOutliers) && outlierHandling === 'percentile' && (
-            <p className="text-xs text-amber-400 mt-1">
-              Outliers detected. Using 5th-95th percentile range.
-            </p>
-          )}
-
-          {/* Legend Toggle */}
-          <label className="text-sm font-medium text-slate-300 block mt-4">
-            Display
-          </label>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowLegend(!showLegend)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                showLegend
-                  ? 'bg-slate-600 text-white'
-                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-              }`}
-            >
-              {showLegend ? 'Hide Legend' : 'Show Legend'}
-            </button>
-            <button
-              onClick={() => {
-                setConfig({
-                  selectedAgents: allAgents.slice(0, 3),
-                  selectedMetrics: ['tq'],
-                  showDeptAvg: true,
-                  showSeniorAvg: false,
-                  showNonSeniorAvg: false,
-                  dateRangeStart: 0,
-                  dateRangeEnd: allDates.length - 1,
-                });
-              }}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors bg-slate-700 text-slate-400 hover:bg-red-600 hover:text-white"
-            >
-              Reset
-            </button>
-          </div>
         </div>
 
-        {/* Date Range */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-300">Date Range</label>
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm text-slate-400">
-              <span>{allDates[config.dateRangeStart] || ''}</span>
-              <span className="text-slate-600">to</span>
-              <span>{allDates[config.dateRangeEnd] || ''}</span>
+        {/* Date Range - 3 cols */}
+        <div className="lg:col-span-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-slate-300">Date Range</label>
+            {config.selectedAgents.length > 0 && (
+              <button
+                onClick={() => {
+                  setConfig((prev) => ({
+                    ...prev,
+                    dateRangeStart: selectedAgentsDateRange.minIdx,
+                    dateRangeEnd: selectedAgentsDateRange.maxIdx,
+                  }));
+                }}
+                className="text-xs text-indigo-400 hover:text-indigo-300"
+                title="Fit date range to selected agents"
+              >
+                Fit to Selection
+              </button>
+            )}
+          </div>
+          <div className="bg-slate-900/50 rounded-lg p-3 space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-white font-medium">{allDates[config.dateRangeStart] || ''}</span>
+              <span className="text-slate-500">→</span>
+              <span className="text-white font-medium">{allDates[config.dateRangeEnd] || ''}</span>
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 w-10">Start</span>
+                <span className="text-xs text-slate-500 w-8">From</span>
                 <input
                   type="range"
                   min={0}
@@ -630,11 +744,11 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                       Math.max(parseInt(e.target.value), config.dateRangeEnd)
                     )
                   }
-                  className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  className="flex-1 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                 />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 w-10">End</span>
+                <span className="text-xs text-slate-500 w-8">To</span>
                 <input
                   type="range"
                   min={0}
@@ -646,9 +760,12 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                       parseInt(e.target.value)
                     )
                   }
-                  className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  className="flex-1 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                 />
               </div>
+            </div>
+            <div className="text-xs text-slate-500 text-center">
+              {config.dateRangeEnd - config.dateRangeStart + 1} days selected
             </div>
           </div>
         </div>
@@ -998,19 +1115,10 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
       )}
 
       {/* Legend explanation */}
-      <div className="text-xs text-slate-500 space-y-1">
-        <div className="flex flex-wrap gap-4">
-          <span className="text-indigo-400 font-medium">Rate Metrics (left axis):</span>
-          <span>T&gt;Q = Trips to Quotes %</span>
-          <span>T&gt;P = Trips to Passthroughs %</span>
-          <span>P&gt;Q = Passthroughs to Quotes %</span>
-          <span>Hot Pass = Hot Passes / Passthroughs %</span>
-          <span>% Non-Conv = Non-Converted / Trips %</span>
-        </div>
-        <div className="flex flex-wrap gap-4">
-          <span className="text-emerald-400 font-medium">Volume Metrics (right axis):</span>
-          <span>Trips, Quotes, Passthroughs, Bookings = Raw counts per day</span>
-        </div>
+      <div className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
+        <span><span className="text-indigo-400">Rate (L):</span> T&gt;Q, T&gt;P, P&gt;Q, Hot Pass %, % Non-Conv</span>
+        <span><span className="text-emerald-400">Volume (R):</span> Trips, Quotes, Passthroughs, Bookings</span>
+        <span><span className="text-slate-400">Lines:</span> solid=tq/trips, dashed=other metrics</span>
       </div>
     </div>
   );
