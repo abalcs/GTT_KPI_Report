@@ -185,7 +185,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
         </div>
       </div>
 
-      {/* Best Day/Time Cards */}
+      {/* Best Day/Time Cards - Passthroughs */}
       {(insights.bestPassthroughDay || insights.bestPassthroughTime) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {insights.bestPassthroughDay && (
@@ -219,6 +219,48 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
                   <div className="text-xl font-bold text-white">{insights.bestPassthroughTime}</div>
                   <div className="text-xs text-slate-400">
                     {insights.passthroughsByTime[0]?.count.toLocaleString()} passthroughs ({insights.passthroughsByTime[0]?.percentage.toFixed(1)}%)
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Best Day/Time Cards - Hot Passes */}
+      {(insights.bestHotPassDay || insights.bestHotPassTime) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {insights.bestHotPassDay && (
+            <div className="bg-gradient-to-br from-orange-600/20 to-amber-600/20 rounded-xl p-4 border border-orange-500/30">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-500/20 rounded-lg">
+                  <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-sm text-orange-300">Best Day for Hot Passes</div>
+                  <div className="text-xl font-bold text-white">{insights.bestHotPassDay}</div>
+                  <div className="text-xs text-slate-400">
+                    {insights.hotPassByDay[0]?.count.toLocaleString()} hot passes ({insights.hotPassByDay[0]?.percentage.toFixed(1)}%)
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {insights.bestHotPassTime && (
+            <div className="bg-gradient-to-br from-amber-600/20 to-yellow-600/20 rounded-xl p-4 border border-amber-500/30">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500/20 rounded-lg">
+                  <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-sm text-amber-300">Best Time for Hot Passes</div>
+                  <div className="text-xl font-bold text-white">{insights.bestHotPassTime}</div>
+                  <div className="text-xs text-slate-400">
+                    {insights.hotPassByTime[0]?.count.toLocaleString()} hot passes ({insights.hotPassByTime[0]?.percentage.toFixed(1)}%)
                   </div>
                 </div>
               </div>
@@ -282,6 +324,59 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <p className="text-sm">Time-of-day data not available</p>
+              <p className="text-xs mt-1">Timestamps may only include dates</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Hot Pass Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Hot Passes by Day */}
+        {insights.hotPassByDay.length > 0 && (
+          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+            <h3 className="text-sm font-medium text-slate-300 mb-4">Hot Passes by Day of Week</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={insights.hotPassByDay.map(d => ({ ...d, label: `${d.percentage.toFixed(1)}%` }))}>
+                <XAxis dataKey="day" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }}
+                  labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                  itemStyle={{ color: '#e2e8f0' }}
+                />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]} fill="#f97316" label={{ position: 'top', fill: '#e2e8f0', fontSize: 11, dataKey: 'label' }} activeBar={false} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Hot Passes by Time */}
+        {insights.hasHotPassTimeData && insights.hotPassByTime.length > 0 && (
+          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+            <h3 className="text-sm font-medium text-slate-300 mb-4">Hot Passes by Time of Day</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={insights.hotPassByTime.map(t => ({ ...t, label: `${t.percentage.toFixed(1)}%` }))} layout="vertical">
+                <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="timeSlot" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} width={120} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }}
+                  labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                  itemStyle={{ color: '#e2e8f0' }}
+                />
+                <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="#f59e0b" label={{ position: 'right', fill: '#e2e8f0', fontSize: 11, dataKey: 'label' }} activeBar={false} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {insights.hotPassByDay.length > 0 && !insights.hasHotPassTimeData && (
+          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 flex items-center justify-center">
+            <div className="text-center text-slate-500">
+              <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm">Hot pass time-of-day data not available</p>
               <p className="text-xs mt-1">Timestamps may only include dates</p>
             </div>
           </div>

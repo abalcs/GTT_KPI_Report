@@ -122,6 +122,13 @@ export interface InsightsData {
   bestPassthroughDay: string | null;
   bestPassthroughTime: string | null;
 
+  // Hot pass patterns
+  hotPassByDay: DayAnalysis[];
+  hotPassByTime: TimeAnalysis[];
+  bestHotPassDay: string | null;
+  bestHotPassTime: string | null;
+  hasHotPassTimeData: boolean;
+
   // Non-validated analysis
   topNonValidatedReasons: NonValidatedReason[];
   agentNonValidated: AgentNonValidated[];
@@ -187,6 +194,71 @@ export const analyzePassthroughsByTime = (passthroughs: CSVRow[]): TimeAnalysis[
   let hasTimeData = false;
 
   for (const row of passthroughs) {
+    const dt = parseDateTime(row[dateCol]);
+    if (dt) {
+      // Check if we have actual time data (not just midnight)
+      if (dt.hour !== 0 || dt.date.getMinutes() !== 0) {
+        hasTimeData = true;
+      }
+      timeCounts[dt.timeSlot] = (timeCounts[dt.timeSlot] || 0) + 1;
+    }
+  }
+
+  if (!hasTimeData) return []; // All times are midnight, likely no time data
+
+  const total = Object.values(timeCounts).reduce((a, b) => a + b, 0);
+
+  return TIME_SLOTS.map(slot => ({
+    timeSlot: slot.name,
+    count: timeCounts[slot.name] || 0,
+    percentage: total > 0 ? ((timeCounts[slot.name] || 0) / total) * 100 : 0,
+  })).sort((a, b) => b.count - a.count);
+};
+
+export const analyzeHotPassByDay = (hotPass: CSVRow[]): DayAnalysis[] => {
+  if (hotPass.length === 0) return [];
+
+  const dateCol = findColumn(hotPass[0], [
+    'created date', 'trip: created date', 'enquiry date', 'date'
+  ]);
+
+  if (!dateCol) return [];
+
+  const dayCounts: Record<string, number> = {};
+  const dayOccurrences: Record<string, Set<string>> = {};
+
+  for (const row of hotPass) {
+    const dt = parseDateTime(row[dateCol]);
+    if (dt) {
+      dayCounts[dt.dayName] = (dayCounts[dt.dayName] || 0) + 1;
+      if (!dayOccurrences[dt.dayName]) dayOccurrences[dt.dayName] = new Set();
+      dayOccurrences[dt.dayName].add(dt.date.toDateString());
+    }
+  }
+
+  const total = Object.values(dayCounts).reduce((a, b) => a + b, 0);
+
+  return DAY_NAMES.map(day => ({
+    day,
+    count: dayCounts[day] || 0,
+    percentage: total > 0 ? ((dayCounts[day] || 0) / total) * 100 : 0,
+    avgPerDay: dayOccurrences[day] ? (dayCounts[day] || 0) / dayOccurrences[day].size : 0,
+  })).sort((a, b) => b.count - a.count);
+};
+
+export const analyzeHotPassByTime = (hotPass: CSVRow[]): TimeAnalysis[] => {
+  if (hotPass.length === 0) return [];
+
+  const dateCol = findColumn(hotPass[0], [
+    'created date', 'trip: created date', 'enquiry date', 'date'
+  ]);
+
+  if (!dateCol) return [];
+
+  const timeCounts: Record<string, number> = {};
+  let hasTimeData = false;
+
+  for (const row of hotPass) {
     const dt = parseDateTime(row[dateCol]);
     if (dt) {
       // Check if we have actual time data (not just midnight)
@@ -336,6 +408,8 @@ export const analyzeBookingCorrelations = (
 export const generateInsightsData = (rawData: RawParsedData): InsightsData => {
   const passthroughsByDay = analyzePassthroughsByDay(rawData.passthroughs);
   const passthroughsByTime = analyzePassthroughsByTime(rawData.passthroughs);
+  const hotPassByDay = analyzeHotPassByDay(rawData.hotPass);
+  const hotPassByTime = analyzeHotPassByTime(rawData.hotPass);
   const topNonValidatedReasons = analyzeNonValidatedReasons(rawData.nonConverted);
   const agentNonValidated = analyzeNonValidatedByAgent(rawData.nonConverted);
   const bookingCorrelations = analyzeBookingCorrelations(
@@ -349,6 +423,11 @@ export const generateInsightsData = (rawData: RawParsedData): InsightsData => {
     passthroughsByTime,
     bestPassthroughDay: passthroughsByDay[0]?.day || null,
     bestPassthroughTime: passthroughsByTime[0]?.timeSlot || null,
+    hotPassByDay,
+    hotPassByTime,
+    bestHotPassDay: hotPassByDay[0]?.day || null,
+    bestHotPassTime: hotPassByTime[0]?.timeSlot || null,
+    hasHotPassTimeData: hotPassByTime.length > 0,
     topNonValidatedReasons,
     agentNonValidated,
     bookingCorrelations,
@@ -377,6 +456,18 @@ export const buildInsightsPrompt = (insights: InsightsData): string => {
       ).join('\n')}`
     : '\nNo time-of-day data available (timestamps may not include time)';
 
+  const hotPassDaySection = insights.hotPassByDay.length > 0
+    ? `\nHOT PASS BY DAY OF WEEK:\n${insights.hotPassByDay.map(d =>
+        `- ${d.day}: ${d.count} (${d.percentage.toFixed(1)}%), avg ${d.avgPerDay.toFixed(1)}/day`
+      ).join('\n')}`
+    : '\nNo hot pass day-of-week data available';
+
+  const hotPassTimeSection = insights.hasHotPassTimeData
+    ? `\nHOT PASS BY TIME OF DAY:\n${insights.hotPassByTime.map(t =>
+        `- ${t.timeSlot}: ${t.count} (${t.percentage.toFixed(1)}%)`
+      ).join('\n')}`
+    : '\nNo hot pass time-of-day data available';
+
   const reasonsSection = insights.hasNonValidatedReasons
     ? `\nTOP NON-VALIDATED REASONS (Department):\n${insights.topNonValidatedReasons.map(r =>
         `- "${r.reason}": ${r.count} (${r.percentage.toFixed(1)}%)`
@@ -399,6 +490,8 @@ OVERVIEW:
 
 ${daySection}
 ${timeSection}
+${hotPassDaySection}
+${hotPassTimeSection}
 ${reasonsSection}
 ${agentSection}
 
@@ -408,7 +501,7 @@ Provide analysis in this format (be specific with numbers and percentages):
 - [3-4 bullet points with the most important patterns discovered]
 
 **Optimal Timing Recommendations:**
-- [2-3 bullet points on best days/times for passthroughs based on the data]
+- [2-3 bullet points on best days/times for passthroughs and hot passes based on the data]
 
 **Non-Validated Lead Insights:**
 - [2-3 bullet points analyzing the common reasons and suggesting improvements]
