@@ -17,11 +17,11 @@ import {
   generateAIInsights,
   discoverColumns,
   analyzeRegionalPerformance,
-  analyzeRegionalPerformanceByAgent,
+  analyzeAgentRegionalDeviations,
   type InsightsData,
   type RegionalTimeframe,
   type DepartmentRegionalPerformance,
-  type AgentRegionalPerformance,
+  type AgentRegionalAnalysis,
 } from '../utils/insightsAnalytics';
 import {
   loadAnthropicApiKey,
@@ -72,14 +72,14 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
     return analyzeRegionalPerformance(rawData.trips, regionalTimeframe);
   }, [rawData.trips, regionalTimeframe]);
 
-  const filteredAgentRegionalPerformance = useMemo<AgentRegionalPerformance[]>(() => {
-    if (!rawData.trips || rawData.trips.length === 0) return [];
-    return analyzeRegionalPerformanceByAgent(rawData.trips, regionalTimeframe);
-  }, [rawData.trips, regionalTimeframe]);
+  const filteredAgentRegionalAnalysis = useMemo<AgentRegionalAnalysis[]>(() => {
+    if (!rawData.trips || rawData.trips.length === 0 || !filteredRegionalPerformance) return [];
+    return analyzeAgentRegionalDeviations(rawData.trips, filteredRegionalPerformance, regionalTimeframe);
+  }, [rawData.trips, filteredRegionalPerformance, regionalTimeframe]);
 
-  const selectedAgentRegionalData = useMemo(() => {
-    return filteredAgentRegionalPerformance.find(a => a.agentName === selectedAgentForRegions);
-  }, [filteredAgentRegionalPerformance, selectedAgentForRegions]);
+  const selectedAgentAnalysis = useMemo(() => {
+    return filteredAgentRegionalAnalysis.find(a => a.agentName === selectedAgentForRegions);
+  }, [filteredAgentRegionalAnalysis, selectedAgentForRegions]);
 
   const handleSaveApiKey = useCallback(() => {
     if (apiKey) {
@@ -556,60 +556,144 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
             </div>
           </div>
 
-          {/* Agent Regional Performance */}
-          {filteredAgentRegionalPerformance.length > 0 && (
+          {/* Agent Regional Performance with Deviations */}
+          {filteredAgentRegionalAnalysis.length > 0 && (
             <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-              <h4 className="text-sm font-medium text-slate-300 mb-4">Agent Regional Performance</h4>
-              <div className="flex flex-wrap gap-4">
+              <h4 className="text-sm font-medium text-slate-300 mb-4">Agent Regional Performance vs Department</h4>
+              <div className="space-y-4">
                 <select
                   value={selectedAgentForRegions}
                   onChange={(e) => setSelectedAgentForRegions(e.target.value)}
-                  className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white min-w-[200px]"
+                  className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white min-w-[250px]"
                 >
-                  <option value="">Select agent...</option>
-                  {filteredAgentRegionalPerformance.map(a => (
+                  <option value="">Select agent to analyze...</option>
+                  {filteredAgentRegionalAnalysis.map(a => (
                     <option key={a.agentName} value={a.agentName}>
                       {a.agentName} ({a.totalTrips} trips, {a.overallTpRate.toFixed(1)}% T&gt;P)
                     </option>
                   ))}
                 </select>
 
-                {selectedAgentRegionalData && (
-                  <div className="flex-1 min-w-[300px]">
-                    <div className="text-sm text-white mb-3">
-                      <strong>{selectedAgentRegionalData.agentName}</strong> - {selectedAgentRegionalData.totalTrips} trips,{' '}
-                      <span className="text-teal-400">{selectedAgentRegionalData.overallTpRate.toFixed(1)}% overall T&gt;P</span>
+                {selectedAgentAnalysis && (
+                  <div className="space-y-6">
+                    {/* Agent Overview */}
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <div className="text-lg text-white font-medium">{selectedAgentAnalysis.agentName}</div>
+                      <div className="flex gap-4 text-sm">
+                        <span className="text-slate-400">{selectedAgentAnalysis.totalTrips} trips</span>
+                        <span className="text-teal-400 font-medium">{selectedAgentAnalysis.overallTpRate.toFixed(1)}% T&gt;P</span>
+                        <span className="text-slate-500">
+                          (Dept avg: {filteredRegionalPerformance?.overallTpRate.toFixed(1)}%)
+                        </span>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <div className="text-xs text-teal-400 mb-2 font-medium">Strong Regions</div>
-                        <div className="space-y-1">
-                          {selectedAgentRegionalData.topRegions.map((r, i) => (
-                            <div key={i} className="flex items-center justify-between text-sm">
-                              <span className="text-slate-300 truncate max-w-[150px]">{r.region}</span>
-                              <span className="text-teal-400 font-medium">{r.tpRate.toFixed(1)}%</span>
+
+                    {/* Above/Below Department Average */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {/* Above Average Regions */}
+                      <div className="bg-teal-900/20 rounded-lg p-4 border border-teal-700/30">
+                        <div className="flex items-center gap-2 mb-3">
+                          <svg className="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                          </svg>
+                          <span className="text-sm font-medium text-teal-300">Above Department Average</span>
+                          <span className="text-xs text-teal-500">({selectedAgentAnalysis.aboveAverage.length} regions)</span>
+                        </div>
+                        <div className="max-h-[200px] overflow-y-auto space-y-2">
+                          {selectedAgentAnalysis.aboveAverage.slice(0, 10).map((d, i) => (
+                            <div key={i} className="flex items-center justify-between text-sm bg-slate-800/50 rounded px-2 py-1.5">
+                              <span className="text-slate-200 truncate max-w-[140px]">{d.region}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-white">{d.agentTpRate.toFixed(1)}%</span>
+                                <span className="text-teal-400 text-xs font-medium">+{d.deviation.toFixed(1)}pp</span>
+                              </div>
                             </div>
                           ))}
-                          {selectedAgentRegionalData.topRegions.length === 0 && (
-                            <div className="text-slate-500 text-xs">No regions with enough data</div>
+                          {selectedAgentAnalysis.aboveAverage.length === 0 && (
+                            <div className="text-slate-500 text-xs">No regions above department average</div>
                           )}
                         </div>
                       </div>
-                      <div>
-                        <div className="text-xs text-rose-400 mb-2 font-medium">Needs Improvement</div>
-                        <div className="space-y-1">
-                          {selectedAgentRegionalData.bottomRegions.map((r, i) => (
-                            <div key={i} className="flex items-center justify-between text-sm">
-                              <span className="text-slate-300 truncate max-w-[150px]">{r.region}</span>
-                              <span className="text-rose-400 font-medium">{r.tpRate.toFixed(1)}%</span>
+
+                      {/* Below Average Regions */}
+                      <div className="bg-rose-900/20 rounded-lg p-4 border border-rose-700/30">
+                        <div className="flex items-center gap-2 mb-3">
+                          <svg className="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                          </svg>
+                          <span className="text-sm font-medium text-rose-300">Below Department Average</span>
+                          <span className="text-xs text-rose-500">({selectedAgentAnalysis.belowAverage.length} regions)</span>
+                        </div>
+                        <div className="max-h-[200px] overflow-y-auto space-y-2">
+                          {selectedAgentAnalysis.belowAverage.slice(0, 10).map((d, i) => (
+                            <div key={i} className="flex items-center justify-between text-sm bg-slate-800/50 rounded px-2 py-1.5">
+                              <span className="text-slate-200 truncate max-w-[140px]">{d.region}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-white">{d.agentTpRate.toFixed(1)}%</span>
+                                <span className="text-rose-400 text-xs font-medium">{d.deviation.toFixed(1)}pp</span>
+                              </div>
                             </div>
                           ))}
-                          {selectedAgentRegionalData.bottomRegions.length === 0 && (
-                            <div className="text-slate-500 text-xs">No regions with enough data</div>
+                          {selectedAgentAnalysis.belowAverage.length === 0 && (
+                            <div className="text-slate-500 text-xs">No regions below department average</div>
                           )}
                         </div>
                       </div>
                     </div>
+
+                    {/* Improvement Recommendations */}
+                    {selectedAgentAnalysis.recommendations.length > 0 && (
+                      <div className="bg-gradient-to-br from-amber-900/20 to-orange-900/20 rounded-xl p-4 border border-amber-600/30">
+                        <div className="flex items-center gap-2 mb-4">
+                          <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                          </svg>
+                          <h5 className="text-sm font-medium text-amber-300">Recommended Focus Areas</h5>
+                          <span className="text-xs text-amber-500/70">Based on deviation &amp; volume impact</span>
+                        </div>
+                        <div className="space-y-3">
+                          {selectedAgentAnalysis.recommendations.map((rec, i) => (
+                            <div
+                              key={i}
+                              className={`rounded-lg p-3 border ${
+                                rec.priority === 'high'
+                                  ? 'bg-rose-900/30 border-rose-600/40'
+                                  : rec.priority === 'medium'
+                                  ? 'bg-amber-900/30 border-amber-600/40'
+                                  : 'bg-slate-800/50 border-slate-600/40'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                                      rec.priority === 'high'
+                                        ? 'bg-rose-500/30 text-rose-300'
+                                        : rec.priority === 'medium'
+                                        ? 'bg-amber-500/30 text-amber-300'
+                                        : 'bg-slate-500/30 text-slate-300'
+                                    }`}>
+                                      {rec.priority.toUpperCase()}
+                                    </span>
+                                    <span className="text-white font-medium">{rec.region}</span>
+                                  </div>
+                                  <p className="text-xs text-slate-400">{rec.reason}</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="text-sm">
+                                    <span className="text-white">{rec.agentTpRate.toFixed(1)}%</span>
+                                    <span className="text-slate-500 mx-1">vs</span>
+                                    <span className="text-slate-300">{rec.departmentTpRate.toFixed(1)}%</span>
+                                  </div>
+                                  <div className="text-xs text-rose-400 font-medium">{rec.deviation.toFixed(1)}pp gap</div>
+                                  <div className="text-xs text-slate-500">{rec.agentTrips} agent / {rec.departmentTrips} dept trips</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

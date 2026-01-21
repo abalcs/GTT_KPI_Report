@@ -124,6 +124,31 @@ export interface RegionalPerformance {
   tpRate: number;
 }
 
+export interface RegionalDeviation {
+  region: string;
+  agentTpRate: number;
+  departmentTpRate: number;
+  deviation: number; // positive = above dept avg, negative = below
+  agentTrips: number;
+  agentPassthroughs: number;
+  departmentTrips: number;
+  // Impact score: combines deviation magnitude with volume
+  // Higher score = bigger opportunity for improvement
+  impactScore: number;
+}
+
+export interface AgentImprovementRecommendation {
+  region: string;
+  priority: 'high' | 'medium' | 'low';
+  deviation: number;
+  agentTrips: number;
+  departmentTrips: number;
+  agentTpRate: number;
+  departmentTpRate: number;
+  impactScore: number;
+  reason: string;
+}
+
 export interface AgentRegionalPerformance {
   agentName: string;
   topRegions: RegionalPerformance[];
@@ -131,6 +156,21 @@ export interface AgentRegionalPerformance {
   totalTrips: number;
   totalPassthroughs: number;
   overallTpRate: number;
+}
+
+export interface AgentRegionalAnalysis {
+  agentName: string;
+  totalTrips: number;
+  totalPassthroughs: number;
+  overallTpRate: number;
+  // Regions where agent outperforms department
+  aboveAverage: RegionalDeviation[];
+  // Regions where agent underperforms department
+  belowAverage: RegionalDeviation[];
+  // All regional deviations
+  allDeviations: RegionalDeviation[];
+  // Prioritized recommendations for improvement
+  recommendations: AgentImprovementRecommendation[];
 }
 
 export interface DepartmentRegionalPerformance {
@@ -630,6 +670,178 @@ export const analyzeRegionalPerformanceByAgent = (
       };
     })
     .filter(a => a.totalTrips >= 5) // Only agents with meaningful data
+    .sort((a, b) => b.totalTrips - a.totalTrips);
+};
+
+export const analyzeAgentRegionalDeviations = (
+  trips: CSVRow[],
+  departmentPerformance: DepartmentRegionalPerformance,
+  timeframe: RegionalTimeframe = 'all'
+): AgentRegionalAnalysis[] => {
+  if (trips.length === 0 || departmentPerformance.allRegions.length === 0) return [];
+
+  const startDate = getTimeframeStartDate(timeframe);
+
+  // Create a map of department T>P rates by region
+  const deptRateByRegion = new Map<string, { tpRate: number; trips: number }>();
+  for (const region of departmentPerformance.allRegions) {
+    deptRateByRegion.set(region.region, { tpRate: region.tpRate, trips: region.trips });
+  }
+
+  // Find relevant columns
+  const regionCol = findColumn(trips[0], ['original interest', 'region', 'country', 'destination']);
+  const passthroughDateCol = findColumn(trips[0], ['passthrough to sales date', 'passthrough date']);
+  const dateCol = findColumn(trips[0], ['created date', 'trip: created date', 'date']);
+  const keys = Object.keys(trips[0]);
+  const agentCol = keys.find(k =>
+    k.toLowerCase().includes('gtt owner') ||
+    k.toLowerCase().includes('owner name') ||
+    k.toLowerCase().includes('agent') ||
+    k.includes('_agent')
+  );
+
+  if (!regionCol || !agentCol) return [];
+
+  // Excluded regions
+  const excludedRegions = ['caribbean'];
+  const isExcluded = (region: string) =>
+    excludedRegions.some(excluded => region.toLowerCase().includes(excluded));
+
+  // Group by agent then region
+  const agentStats: Record<string, Record<string, { trips: number; passthroughs: number }>> = {};
+  let currentAgent = '';
+
+  for (const row of trips) {
+    const agent = (row[agentCol] || '').trim();
+    if (agent && !/^\d+$/.test(agent)) currentAgent = agent;
+    if (!currentAgent) continue;
+
+    const region = (row[regionCol] || '').trim();
+    if (!region || region.length < 2) continue;
+    if (isExcluded(region)) continue;
+
+    const rowDate = dateCol ? row[dateCol] : '';
+    if (!isWithinTimeframe(rowDate, startDate)) continue;
+
+    if (!agentStats[currentAgent]) {
+      agentStats[currentAgent] = {};
+    }
+    if (!agentStats[currentAgent][region]) {
+      agentStats[currentAgent][region] = { trips: 0, passthroughs: 0 };
+    }
+
+    agentStats[currentAgent][region].trips++;
+
+    if (passthroughDateCol) {
+      const passthroughDate = (row[passthroughDateCol] || '').trim();
+      if (passthroughDate && passthroughDate.length > 0) {
+        agentStats[currentAgent][region].passthroughs++;
+      }
+    }
+  }
+
+  // Calculate total department trips for weighting
+  const totalDeptTrips = departmentPerformance.totalTrips;
+
+  // Convert to array with deviation analysis
+  return Object.entries(agentStats)
+    .map(([agentName, regions]) => {
+      const allDeviations: RegionalDeviation[] = [];
+
+      for (const [region, stats] of Object.entries(regions)) {
+        if (stats.trips < 2) continue; // Need minimum data
+
+        const deptData = deptRateByRegion.get(region);
+        if (!deptData) continue; // Region not in department data
+
+        const agentTpRate = stats.trips > 0 ? (stats.passthroughs / stats.trips) * 100 : 0;
+        const deviation = agentTpRate - deptData.tpRate;
+
+        // Impact score: combines magnitude of underperformance with volume
+        // For underperformers: higher negative deviation + higher volume = higher impact
+        // We use department trips as the volume indicator (opportunity size)
+        // Score = |deviation| * sqrt(deptTrips / totalDeptTrips) * 100
+        // sqrt dampens the volume effect so one huge region doesn't dominate
+        const volumeWeight = Math.sqrt(deptData.trips / Math.max(totalDeptTrips, 1));
+        const impactScore = Math.abs(deviation) * volumeWeight * 100;
+
+        allDeviations.push({
+          region,
+          agentTpRate,
+          departmentTpRate: deptData.tpRate,
+          deviation,
+          agentTrips: stats.trips,
+          agentPassthroughs: stats.passthroughs,
+          departmentTrips: deptData.trips,
+          impactScore,
+        });
+      }
+
+      // Sort by deviation for above/below average
+      const aboveAverage = allDeviations
+        .filter(d => d.deviation > 0)
+        .sort((a, b) => b.deviation - a.deviation);
+
+      const belowAverage = allDeviations
+        .filter(d => d.deviation < 0)
+        .sort((a, b) => a.deviation - b.deviation); // Most negative first
+
+      // Generate recommendations: underperforming regions sorted by impact
+      const recommendations: AgentImprovementRecommendation[] = belowAverage
+        .sort((a, b) => b.impactScore - a.impactScore)
+        .slice(0, 5)
+        .map((d, index) => {
+          // Determine priority based on impact score ranking
+          let priority: 'high' | 'medium' | 'low';
+          if (index === 0 && d.impactScore > 5) {
+            priority = 'high';
+          } else if (index < 2 && d.impactScore > 2) {
+            priority = 'medium';
+          } else {
+            priority = 'low';
+          }
+
+          // Generate reason
+          let reason: string;
+          const deviationAbs = Math.abs(d.deviation).toFixed(1);
+          if (d.departmentTrips > 50 && Math.abs(d.deviation) > 10) {
+            reason = `High-volume region (${d.departmentTrips} dept trips) with significant gap of -${deviationAbs}pp`;
+          } else if (d.departmentTrips > 50) {
+            reason = `High-volume region (${d.departmentTrips} dept trips) - small improvements have big impact`;
+          } else if (Math.abs(d.deviation) > 15) {
+            reason = `Large performance gap of -${deviationAbs}pp vs department average`;
+          } else {
+            reason = `${deviationAbs}pp below department average with ${d.departmentTrips} dept trips`;
+          }
+
+          return {
+            region: d.region,
+            priority,
+            deviation: d.deviation,
+            agentTrips: d.agentTrips,
+            departmentTrips: d.departmentTrips,
+            agentTpRate: d.agentTpRate,
+            departmentTpRate: d.departmentTpRate,
+            impactScore: d.impactScore,
+            reason,
+          };
+        });
+
+      const totalTrips = Object.values(regions).reduce((sum, r) => sum + r.trips, 0);
+      const totalPassthroughs = Object.values(regions).reduce((sum, r) => sum + r.passthroughs, 0);
+
+      return {
+        agentName,
+        totalTrips,
+        totalPassthroughs,
+        overallTpRate: totalTrips > 0 ? (totalPassthroughs / totalTrips) * 100 : 0,
+        aboveAverage,
+        belowAverage,
+        allDeviations: allDeviations.sort((a, b) => b.deviation - a.deviation),
+        recommendations,
+      };
+    })
+    .filter(a => a.totalTrips >= 5)
     .sort((a, b) => b.totalTrips - a.totalTrips);
 };
 
