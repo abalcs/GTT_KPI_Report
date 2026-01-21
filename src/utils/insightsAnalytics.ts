@@ -115,7 +115,7 @@ export interface BookingCorrelation {
   description: string;
 }
 
-export type RegionalTimeframe = 'week' | 'month' | 'quarter' | 'ytd' | 'all';
+export type RegionalTimeframe = 'lastWeek' | 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'lastQuarter' | 'lastYear' | 'all';
 
 export interface RegionalPerformance {
   region: string;
@@ -208,6 +208,30 @@ export interface RegionalTrendData {
   periods: string[];
   topRegionsByPeriod: Map<string, RegionalPerformance[]>;
   allTrends: RegionalTrendPoint[];
+}
+
+// ============ Client Segment Analysis Types ============
+
+export interface ClientSegmentPerformance {
+  segment: string; // 'repeat' | 'new' for repeat analysis, 'b2b' | 'b2c' for B2B analysis
+  trips: number;
+  passthroughs: number;
+  tpRate: number;
+}
+
+export interface DepartmentClientSegmentPerformance {
+  segments: ClientSegmentPerformance[];
+  totalTrips: number;
+  totalPassthroughs: number;
+  overallTpRate: number;
+}
+
+export interface AgentClientSegmentPerformance {
+  agentName: string;
+  segments: ClientSegmentPerformance[];
+  totalTrips: number;
+  totalPassthroughs: number;
+  overallTpRate: number;
 }
 
 export interface InsightsData {
@@ -461,21 +485,63 @@ export const analyzeNonValidatedByAgent = (nonConverted: CSVRow[]): AgentNonVali
 
 // ============ Regional Performance Analysis ============
 
-const getTimeframeStartDate = (timeframe: RegionalTimeframe): Date | null => {
+interface TimeframeRange {
+  start: Date | null;
+  end: Date | null;
+}
+
+const getTimeframeRange = (timeframe: RegionalTimeframe): TimeframeRange => {
   const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
   switch (timeframe) {
-    case 'week':
-      return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
-    case 'month':
-      return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-    case 'quarter':
-      return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
-    case 'ytd':
-      return new Date(now.getFullYear(), 0, 1);
+    case 'lastWeek': {
+      // Last week: Sunday to Saturday of previous week
+      const dayOfWeek = today.getDay();
+      const lastSunday = new Date(today);
+      lastSunday.setDate(today.getDate() - dayOfWeek - 7);
+      const lastSaturday = new Date(lastSunday);
+      lastSaturday.setDate(lastSunday.getDate() + 6);
+      lastSaturday.setHours(23, 59, 59, 999);
+      return { start: lastSunday, end: lastSaturday };
+    }
+    case 'thisMonth': {
+      // This month: 1st of current month to today
+      const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { start: firstOfMonth, end: null };
+    }
+    case 'lastMonth': {
+      // Last month: 1st to last day of previous month
+      const firstOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const lastOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+      return { start: firstOfLastMonth, end: lastOfLastMonth };
+    }
+    case 'thisQuarter': {
+      // This quarter: 1st of current quarter to today
+      const quarterMonth = Math.floor(today.getMonth() / 3) * 3;
+      const firstOfQuarter = new Date(today.getFullYear(), quarterMonth, 1);
+      return { start: firstOfQuarter, end: null };
+    }
+    case 'lastQuarter': {
+      // Last quarter: full previous quarter
+      const currentQuarter = Math.floor(today.getMonth() / 3);
+      const lastQuarter = currentQuarter === 0 ? 3 : currentQuarter - 1;
+      const lastQuarterYear = currentQuarter === 0 ? today.getFullYear() - 1 : today.getFullYear();
+      const firstOfLastQuarter = new Date(lastQuarterYear, lastQuarter * 3, 1);
+      const lastOfLastQuarter = new Date(lastQuarterYear, (lastQuarter + 1) * 3, 0, 23, 59, 59, 999);
+      return { start: firstOfLastQuarter, end: lastOfLastQuarter };
+    }
+    case 'lastYear': {
+      // Last year: Jan 1 to Dec 31 of previous year
+      const lastYear = today.getFullYear() - 1;
+      const firstOfLastYear = new Date(lastYear, 0, 1);
+      const lastOfLastYear = new Date(lastYear, 11, 31, 23, 59, 59, 999);
+      return { start: firstOfLastYear, end: lastOfLastYear };
+    }
     case 'all':
-      return null;
+      return { start: null, end: null };
     default:
-      return null;
+      return { start: null, end: null };
   }
 };
 
@@ -496,11 +562,13 @@ const parseDate = (value: string): Date | null => {
   return null;
 };
 
-const isWithinTimeframe = (dateStr: string, startDate: Date | null): boolean => {
-  if (!startDate) return true; // 'all' timeframe
+const isWithinTimeframe = (dateStr: string, startDate: Date | null, endDate?: Date | null): boolean => {
+  if (!startDate && !endDate) return true; // 'all' timeframe
   const date = parseDate(dateStr);
   if (!date) return false;
-  return date >= startDate;
+  if (startDate && date < startDate) return false;
+  if (endDate && date > endDate) return false;
+  return true;
 };
 
 export const analyzeRegionalPerformance = (
@@ -518,7 +586,7 @@ export const analyzeRegionalPerformance = (
     };
   }
 
-  const startDate = getTimeframeStartDate(timeframe);
+  const { start: startDate, end: endDate } = getTimeframeRange(timeframe);
 
   // Find relevant columns
   const regionCol = findColumn(trips[0], ['original interest', 'region', 'country', 'destination']);
@@ -553,7 +621,7 @@ export const analyzeRegionalPerformance = (
 
     // Check timeframe filter
     const rowDate = dateCol ? row[dateCol] : '';
-    if (!isWithinTimeframe(rowDate, startDate)) continue;
+    if (!isWithinTimeframe(rowDate, startDate, endDate)) continue;
 
     if (!regionStats[region]) {
       regionStats[region] = { trips: 0, passthroughs: 0 };
@@ -671,7 +739,7 @@ export const analyzeRegionalPerformanceByAgent = (
 ): AgentRegionalPerformance[] => {
   if (trips.length === 0) return [];
 
-  const startDate = getTimeframeStartDate(timeframe);
+  const { start: startDate, end: endDate } = getTimeframeRange(timeframe);
 
   // Find relevant columns
   const regionCol = findColumn(trips[0], ['original interest', 'region', 'country', 'destination']);
@@ -709,7 +777,7 @@ export const analyzeRegionalPerformanceByAgent = (
 
     // Check timeframe filter
     const rowDate = dateCol ? row[dateCol] : '';
-    if (!isWithinTimeframe(rowDate, startDate)) continue;
+    if (!isWithinTimeframe(rowDate, startDate, endDate)) continue;
 
     if (!agentStats[currentAgent]) {
       agentStats[currentAgent] = {};
@@ -764,7 +832,7 @@ export const analyzeAgentRegionalDeviations = (
 ): AgentRegionalAnalysis[] => {
   if (trips.length === 0 || departmentPerformance.allRegions.length === 0) return [];
 
-  const startDate = getTimeframeStartDate(timeframe);
+  const { start: startDate, end: endDate } = getTimeframeRange(timeframe);
 
   // Create a map of department T>P rates by region
   const deptRateByRegion = new Map<string, { tpRate: number; trips: number }>();
@@ -805,7 +873,7 @@ export const analyzeAgentRegionalDeviations = (
     if (isExcluded(region)) continue;
 
     const rowDate = dateCol ? row[dateCol] : '';
-    if (!isWithinTimeframe(rowDate, startDate)) continue;
+    if (!isWithinTimeframe(rowDate, startDate, endDate)) continue;
 
     if (!agentStats[currentAgent]) {
       agentStats[currentAgent] = {};
@@ -1040,6 +1108,333 @@ export const analyzeRegionalTrends = (
     topRegionsByPeriod,
     allTrends,
   };
+};
+
+// ============ Repeat Client Performance Analysis ============
+
+export const analyzeRepeatClientPerformance = (
+  trips: CSVRow[],
+  timeframe: RegionalTimeframe = 'all'
+): DepartmentClientSegmentPerformance => {
+  if (trips.length === 0) {
+    return {
+      segments: [],
+      totalTrips: 0,
+      totalPassthroughs: 0,
+      overallTpRate: 0,
+    };
+  }
+
+  const { start: startDate, end: endDate } = getTimeframeRange(timeframe);
+
+  // Find relevant columns
+  const repeatCol = findColumn(trips[0], ['repeat/new', 'repeat', 'client type', 'customer type']);
+  const passthroughDateCol = findColumn(trips[0], ['passthrough to sales date', 'passthrough date']);
+  const dateCol = findColumn(trips[0], ['created date', 'trip: created date', 'date']);
+
+  if (!repeatCol) {
+    return {
+      segments: [],
+      totalTrips: 0,
+      totalPassthroughs: 0,
+      overallTpRate: 0,
+    };
+  }
+
+  // Track stats by segment
+  const segmentStats: Record<string, { trips: number; passthroughs: number }> = {
+    repeat: { trips: 0, passthroughs: 0 },
+    new: { trips: 0, passthroughs: 0 },
+  };
+
+  for (const row of trips) {
+    // Check timeframe filter
+    const rowDate = dateCol ? row[dateCol] : '';
+    if (!isWithinTimeframe(rowDate, startDate, endDate)) continue;
+
+    const repeatValue = (row[repeatCol] || '').trim().toLowerCase();
+    const isRepeat = repeatValue === 'repeat';
+    const segment = isRepeat ? 'repeat' : 'new';
+
+    segmentStats[segment].trips++;
+
+    // Check if there's a passthrough date
+    if (passthroughDateCol) {
+      const passthroughDate = (row[passthroughDateCol] || '').trim();
+      if (passthroughDate && passthroughDate.length > 0) {
+        segmentStats[segment].passthroughs++;
+      }
+    }
+  }
+
+  // Convert to array and calculate rates
+  const segments: ClientSegmentPerformance[] = Object.entries(segmentStats)
+    .filter(([_, stats]) => stats.trips > 0)
+    .map(([segment, stats]) => ({
+      segment: segment.charAt(0).toUpperCase() + segment.slice(1), // Capitalize
+      trips: stats.trips,
+      passthroughs: stats.passthroughs,
+      tpRate: stats.trips > 0 ? (stats.passthroughs / stats.trips) * 100 : 0,
+    }))
+    .sort((a, b) => b.tpRate - a.tpRate);
+
+  const totalTrips = segments.reduce((sum, s) => sum + s.trips, 0);
+  const totalPassthroughs = segments.reduce((sum, s) => sum + s.passthroughs, 0);
+
+  return {
+    segments,
+    totalTrips,
+    totalPassthroughs,
+    overallTpRate: totalTrips > 0 ? (totalPassthroughs / totalTrips) * 100 : 0,
+  };
+};
+
+export const analyzeRepeatClientPerformanceByAgent = (
+  trips: CSVRow[],
+  timeframe: RegionalTimeframe = 'all'
+): AgentClientSegmentPerformance[] => {
+  if (trips.length === 0) return [];
+
+  const { start: startDate, end: endDate } = getTimeframeRange(timeframe);
+
+  // Find relevant columns
+  const repeatCol = findColumn(trips[0], ['repeat/new', 'repeat', 'client type', 'customer type']);
+  const passthroughDateCol = findColumn(trips[0], ['passthrough to sales date', 'passthrough date']);
+  const dateCol = findColumn(trips[0], ['created date', 'trip: created date', 'date']);
+  const keys = Object.keys(trips[0]);
+  const agentCol = keys.find(k =>
+    k.toLowerCase().includes('gtt owner') ||
+    k.toLowerCase().includes('owner name') ||
+    k.toLowerCase().includes('agent') ||
+    k.includes('_agent')
+  );
+
+  if (!repeatCol || !agentCol) return [];
+
+  // Group by agent then segment
+  const agentStats: Record<string, Record<string, { trips: number; passthroughs: number }>> = {};
+  let currentAgent = '';
+
+  for (const row of trips) {
+    const agent = (row[agentCol] || '').trim();
+    if (agent && !/^\d+$/.test(agent)) currentAgent = agent;
+    if (!currentAgent) continue;
+
+    // Check timeframe filter
+    const rowDate = dateCol ? row[dateCol] : '';
+    if (!isWithinTimeframe(rowDate, startDate, endDate)) continue;
+
+    const repeatValue = (row[repeatCol] || '').trim().toLowerCase();
+    const isRepeat = repeatValue === 'repeat';
+    const segment = isRepeat ? 'repeat' : 'new';
+
+    if (!agentStats[currentAgent]) {
+      agentStats[currentAgent] = {
+        repeat: { trips: 0, passthroughs: 0 },
+        new: { trips: 0, passthroughs: 0 },
+      };
+    }
+
+    agentStats[currentAgent][segment].trips++;
+
+    if (passthroughDateCol) {
+      const passthroughDate = (row[passthroughDateCol] || '').trim();
+      if (passthroughDate && passthroughDate.length > 0) {
+        agentStats[currentAgent][segment].passthroughs++;
+      }
+    }
+  }
+
+  // Convert to array
+  return Object.entries(agentStats)
+    .map(([agentName, segments]) => {
+      const segmentPerf: ClientSegmentPerformance[] = Object.entries(segments)
+        .filter(([_, stats]) => stats.trips > 0)
+        .map(([segment, stats]) => ({
+          segment: segment.charAt(0).toUpperCase() + segment.slice(1),
+          trips: stats.trips,
+          passthroughs: stats.passthroughs,
+          tpRate: stats.trips > 0 ? (stats.passthroughs / stats.trips) * 100 : 0,
+        }))
+        .sort((a, b) => b.tpRate - a.tpRate);
+
+      const totalTrips = segmentPerf.reduce((sum, s) => sum + s.trips, 0);
+      const totalPassthroughs = segmentPerf.reduce((sum, s) => sum + s.passthroughs, 0);
+
+      return {
+        agentName,
+        segments: segmentPerf,
+        totalTrips,
+        totalPassthroughs,
+        overallTpRate: totalTrips > 0 ? (totalPassthroughs / totalTrips) * 100 : 0,
+      };
+    })
+    .filter(a => a.totalTrips >= 5)
+    .sort((a, b) => b.totalTrips - a.totalTrips);
+};
+
+// ============ B2B/B2C Performance Analysis ============
+
+export const analyzeB2BPerformance = (
+  trips: CSVRow[],
+  timeframe: RegionalTimeframe = 'all'
+): DepartmentClientSegmentPerformance => {
+  if (trips.length === 0) {
+    return {
+      segments: [],
+      totalTrips: 0,
+      totalPassthroughs: 0,
+      overallTpRate: 0,
+    };
+  }
+
+  const { start: startDate, end: endDate } = getTimeframeRange(timeframe);
+
+  // Find relevant columns
+  const b2bCol = findColumn(trips[0], ['b2b/b2c', 'b2b', 'business type', 'client category']);
+  const passthroughDateCol = findColumn(trips[0], ['passthrough to sales date', 'passthrough date']);
+  const dateCol = findColumn(trips[0], ['created date', 'trip: created date', 'date']);
+
+  if (!b2bCol) {
+    return {
+      segments: [],
+      totalTrips: 0,
+      totalPassthroughs: 0,
+      overallTpRate: 0,
+    };
+  }
+
+  // Track stats by segment
+  const segmentStats: Record<string, { trips: number; passthroughs: number }> = {
+    b2b: { trips: 0, passthroughs: 0 },
+    b2c: { trips: 0, passthroughs: 0 },
+  };
+
+  for (const row of trips) {
+    // Check timeframe filter
+    const rowDate = dateCol ? row[dateCol] : '';
+    if (!isWithinTimeframe(rowDate, startDate, endDate)) continue;
+
+    const b2bValue = (row[b2bCol] || '').trim().toLowerCase();
+    // Default to B2C if value isn't clearly B2B
+    const isB2B = b2bValue === 'b2b';
+    const segment = isB2B ? 'b2b' : 'b2c';
+
+    segmentStats[segment].trips++;
+
+    // Check if there's a passthrough date
+    if (passthroughDateCol) {
+      const passthroughDate = (row[passthroughDateCol] || '').trim();
+      if (passthroughDate && passthroughDate.length > 0) {
+        segmentStats[segment].passthroughs++;
+      }
+    }
+  }
+
+  // Convert to array and calculate rates
+  const segments: ClientSegmentPerformance[] = Object.entries(segmentStats)
+    .filter(([_, stats]) => stats.trips > 0)
+    .map(([segment, stats]) => ({
+      segment: segment.toUpperCase(), // B2B, B2C
+      trips: stats.trips,
+      passthroughs: stats.passthroughs,
+      tpRate: stats.trips > 0 ? (stats.passthroughs / stats.trips) * 100 : 0,
+    }))
+    .sort((a, b) => b.tpRate - a.tpRate);
+
+  const totalTrips = segments.reduce((sum, s) => sum + s.trips, 0);
+  const totalPassthroughs = segments.reduce((sum, s) => sum + s.passthroughs, 0);
+
+  return {
+    segments,
+    totalTrips,
+    totalPassthroughs,
+    overallTpRate: totalTrips > 0 ? (totalPassthroughs / totalTrips) * 100 : 0,
+  };
+};
+
+export const analyzeB2BPerformanceByAgent = (
+  trips: CSVRow[],
+  timeframe: RegionalTimeframe = 'all'
+): AgentClientSegmentPerformance[] => {
+  if (trips.length === 0) return [];
+
+  const { start: startDate, end: endDate } = getTimeframeRange(timeframe);
+
+  // Find relevant columns
+  const b2bCol = findColumn(trips[0], ['b2b/b2c', 'b2b', 'business type', 'client category']);
+  const passthroughDateCol = findColumn(trips[0], ['passthrough to sales date', 'passthrough date']);
+  const dateCol = findColumn(trips[0], ['created date', 'trip: created date', 'date']);
+  const keys = Object.keys(trips[0]);
+  const agentCol = keys.find(k =>
+    k.toLowerCase().includes('gtt owner') ||
+    k.toLowerCase().includes('owner name') ||
+    k.toLowerCase().includes('agent') ||
+    k.includes('_agent')
+  );
+
+  if (!b2bCol || !agentCol) return [];
+
+  // Group by agent then segment
+  const agentStats: Record<string, Record<string, { trips: number; passthroughs: number }>> = {};
+  let currentAgent = '';
+
+  for (const row of trips) {
+    const agent = (row[agentCol] || '').trim();
+    if (agent && !/^\d+$/.test(agent)) currentAgent = agent;
+    if (!currentAgent) continue;
+
+    // Check timeframe filter
+    const rowDate = dateCol ? row[dateCol] : '';
+    if (!isWithinTimeframe(rowDate, startDate, endDate)) continue;
+
+    const b2bValue = (row[b2bCol] || '').trim().toLowerCase();
+    const isB2B = b2bValue === 'b2b';
+    const segment = isB2B ? 'b2b' : 'b2c';
+
+    if (!agentStats[currentAgent]) {
+      agentStats[currentAgent] = {
+        b2b: { trips: 0, passthroughs: 0 },
+        b2c: { trips: 0, passthroughs: 0 },
+      };
+    }
+
+    agentStats[currentAgent][segment].trips++;
+
+    if (passthroughDateCol) {
+      const passthroughDate = (row[passthroughDateCol] || '').trim();
+      if (passthroughDate && passthroughDate.length > 0) {
+        agentStats[currentAgent][segment].passthroughs++;
+      }
+    }
+  }
+
+  // Convert to array
+  return Object.entries(agentStats)
+    .map(([agentName, segments]) => {
+      const segmentPerf: ClientSegmentPerformance[] = Object.entries(segments)
+        .filter(([_, stats]) => stats.trips > 0)
+        .map(([segment, stats]) => ({
+          segment: segment.toUpperCase(),
+          trips: stats.trips,
+          passthroughs: stats.passthroughs,
+          tpRate: stats.trips > 0 ? (stats.passthroughs / stats.trips) * 100 : 0,
+        }))
+        .sort((a, b) => b.tpRate - a.tpRate);
+
+      const totalTrips = segmentPerf.reduce((sum, s) => sum + s.trips, 0);
+      const totalPassthroughs = segmentPerf.reduce((sum, s) => sum + s.passthroughs, 0);
+
+      return {
+        agentName,
+        segments: segmentPerf,
+        totalTrips,
+        totalPassthroughs,
+        overallTpRate: totalTrips > 0 ? (totalPassthroughs / totalTrips) * 100 : 0,
+      };
+    })
+    .filter(a => a.totalTrips >= 5)
+    .sort((a, b) => b.totalTrips - a.totalTrips);
 };
 
 export const analyzeBookingCorrelations = (

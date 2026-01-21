@@ -294,6 +294,60 @@ function App() {
   const isProcessing = workerState.isProcessing;
   const uploadedCount = [files.trips, files.quotes, files.passthroughs, files.hotPass, files.bookings, files.nonConverted].filter(Boolean).length;
 
+  // Calculate date range from stored data
+  const dataDateRange = useMemo(() => {
+    if (!rawParsedData?.trips || rawParsedData.trips.length === 0) return null;
+
+    const parseDate = (value: string): Date | null => {
+      if (!value || value.trim() === '') return null;
+      // Try Excel serial number
+      const numValue = parseFloat(value);
+      if (!isNaN(numValue) && numValue > 1000 && numValue < 100000) {
+        const excelEpoch = new Date(1899, 11, 30);
+        return new Date(excelEpoch.getTime() + numValue * 24 * 60 * 60 * 1000);
+      }
+      // Try standard date string
+      const parsed = new Date(value);
+      if (!isNaN(parsed.getTime())) return parsed;
+      return null;
+    };
+
+    // Find date column
+    const keys = Object.keys(rawParsedData.trips[0] || {});
+    const dateCol = keys.find(k =>
+      k.toLowerCase().includes('created date') ||
+      k.toLowerCase().includes('trip: created date') ||
+      k.toLowerCase().includes('date')
+    );
+
+    if (!dateCol) return null;
+
+    let minDate: Date | null = null;
+    let maxDate: Date | null = null;
+
+    for (const row of rawParsedData.trips) {
+      const date = parseDate(row[dateCol] || '');
+      if (date) {
+        if (!minDate || date < minDate) minDate = date;
+        if (!maxDate || date > maxDate) maxDate = date;
+      }
+    }
+
+    if (!minDate || !maxDate) return null;
+
+    // Format dates nicely
+    const formatDate = (d: Date) => d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+
+    return {
+      start: formatDate(minDate),
+      end: formatDate(maxDate),
+    };
+  }, [rawParsedData?.trips]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <div className="max-w-7xl mx-auto px-4 py-6">
@@ -328,8 +382,14 @@ function App() {
               </svg>
               <span className="font-medium text-white">Data Source</span>
               {hasStoredData && !showDataPanel && (
-                <span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-xs">
-                  Data loaded
+                <span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-xs flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {dataDateRange
+                    ? `${dataDateRange.start} — ${dataDateRange.end}`
+                    : 'Data loaded'
+                  }
                 </span>
               )}
               {!hasStoredData && uploadedCount > 0 && (
@@ -526,7 +586,7 @@ function App() {
 
         {/* Insights View */}
         {activeView === 'insights' && rawParsedData && (
-          <InsightsView rawData={rawParsedData} />
+          <InsightsView rawData={rawParsedData} seniors={seniors} />
         )}
 
         {/* Records View */}
