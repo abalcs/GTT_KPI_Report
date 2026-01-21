@@ -12,7 +12,7 @@ type SortBy = 'name' | 'trips' | 'quotes' | 'passthroughs' | 'tq' | 'tp' | 'pq';
 
 const VOLUME_METRICS: VolumeMetric[] = ['trips', 'quotes', 'passthroughs'];
 const RATE_METRICS: RateMetric[] = ['tq', 'tp', 'pq'];
-const VOLUME_PERIODS: TimePeriod[] = ['week', 'month', 'quarter'];
+const VOLUME_PERIODS: TimePeriod[] = ['day', 'week', 'month', 'quarter'];
 const RATE_PERIODS: TimePeriod[] = ['month', 'quarter'];
 
 export const RecordsView: React.FC<RecordsViewProps> = ({ records, onClearRecords }) => {
@@ -277,7 +277,7 @@ export const RecordsView: React.FC<RecordsViewProps> = ({ records, onClearRecord
                     <div className={`text-sm font-semibold mb-2 ${getMetricColor(metric)}`}>
                       {formatMetricName(metric)}
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="grid grid-cols-4 gap-2 text-xs">
                       {VOLUME_PERIODS.map(period => {
                         const record = selectedAgentRecords[metric][period];
                         return (

@@ -4,7 +4,7 @@ import type { TimeSeriesData, DailyAgentMetrics } from '../types';
 
 export type VolumeMetric = 'trips' | 'quotes' | 'passthroughs';
 export type RateMetric = 'tq' | 'tp' | 'pq';
-export type TimePeriod = 'week' | 'month' | 'quarter';
+export type TimePeriod = 'day' | 'week' | 'month' | 'quarter';
 
 export interface RecordEntry {
   value: number;
@@ -15,18 +15,21 @@ export interface RecordEntry {
 
 export interface AgentRecords {
   agentName: string;
-  // Volume records (week, month, quarter)
+  // Volume records (day, week, month, quarter)
   trips: {
+    day: RecordEntry | null;
     week: RecordEntry | null;
     month: RecordEntry | null;
     quarter: RecordEntry | null;
   };
   quotes: {
+    day: RecordEntry | null;
     week: RecordEntry | null;
     month: RecordEntry | null;
     quarter: RecordEntry | null;
   };
   passthroughs: {
+    day: RecordEntry | null;
     week: RecordEntry | null;
     month: RecordEntry | null;
     quarter: RecordEntry | null;
@@ -92,6 +95,14 @@ export const clearRecords = (): void => {
 };
 
 // ============ Date Utilities ============
+
+const getDayStart = (date: Date): Date => {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+const getDayEnd = (date: Date): Date => {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
 
 const getWeekStart = (date: Date): Date => {
   const d = new Date(date);
@@ -206,9 +217,9 @@ const calculatePeriodRate = (
 
 const createEmptyAgentRecords = (agentName: string): AgentRecords => ({
   agentName,
-  trips: { week: null, month: null, quarter: null },
-  quotes: { week: null, month: null, quarter: null },
-  passthroughs: { week: null, month: null, quarter: null },
+  trips: { day: null, week: null, month: null, quarter: null },
+  quotes: { day: null, week: null, month: null, quarter: null },
+  passthroughs: { day: null, week: null, month: null, quarter: null },
   tq: { month: null, quarter: null },
   tp: { month: null, quarter: null },
   pq: { month: null, quarter: null },
@@ -289,6 +300,7 @@ export const analyzeAndUpdateRecords = (
     const agentRecords = { ...newRecords.agents[agentName] };
 
     // Aggregate data by period
+    const dailyData = aggregateByPeriod(dailyMetrics, getDayStart, getDayEnd);
     const weeklyData = aggregateByPeriod(dailyMetrics, getWeekStart, getWeekEnd);
     const monthlyData = aggregateByPeriod(dailyMetrics, getMonthStart, getMonthEnd);
     const quarterlyData = aggregateByPeriod(dailyMetrics, getQuarterStart, getQuarterEnd);
@@ -297,6 +309,29 @@ export const analyzeAndUpdateRecords = (
     const volumeMetrics: VolumeMetric[] = ['trips', 'quotes', 'passthroughs'];
 
     for (const metric of volumeMetrics) {
+      // Daily
+      for (const period of dailyData) {
+        const result = checkAndUpdateVolumeRecord(
+          agentRecords[metric].day,
+          period[metric],
+          period.periodStart,
+          period.periodEnd
+        );
+        if (result.updated) {
+          agentRecords[metric] = { ...agentRecords[metric], day: result.newRecord };
+          updates.push({
+            agentName,
+            metric,
+            period: 'day',
+            previousValue: result.previousValue,
+            newValue: period[metric],
+            periodStart: period.periodStart,
+            periodEnd: period.periodEnd,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
       // Weekly
       for (const period of weeklyData) {
         const result = checkAndUpdateVolumeRecord(
@@ -442,6 +477,7 @@ export const formatMetricName = (metric: VolumeMetric | RateMetric): string => {
 
 export const formatPeriodName = (period: TimePeriod): string => {
   const names: Record<TimePeriod, string> = {
+    day: 'Daily',
     week: 'Weekly',
     month: 'Monthly',
     quarter: 'Quarterly',
