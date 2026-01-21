@@ -486,9 +486,17 @@ export const analyzeRegionalPerformance = (
   // Group by region
   const regionStats: Record<string, { trips: number; passthroughs: number }> = {};
 
+  // Excluded regions (case-insensitive matching)
+  const excludedRegions = ['caribbean'];
+  const isExcluded = (region: string) =>
+    excludedRegions.some(excluded => region.toLowerCase().includes(excluded));
+
   for (const row of trips) {
     const region = (row[regionCol] || '').trim();
     if (!region || region.length < 2) continue;
+
+    // Skip excluded regions
+    if (isExcluded(region)) continue;
 
     // Check timeframe filter
     const rowDate = dateCol ? row[dateCol] : '';
@@ -555,6 +563,11 @@ export const analyzeRegionalPerformanceByAgent = (
 
   if (!regionCol || !agentCol) return [];
 
+  // Excluded regions (case-insensitive matching)
+  const excludedRegions = ['caribbean'];
+  const isExcluded = (region: string) =>
+    excludedRegions.some(excluded => region.toLowerCase().includes(excluded));
+
   // Group by agent then region
   const agentStats: Record<string, Record<string, { trips: number; passthroughs: number }>> = {};
   let currentAgent = '';
@@ -566,6 +579,9 @@ export const analyzeRegionalPerformanceByAgent = (
 
     const region = (row[regionCol] || '').trim();
     if (!region || region.length < 2) continue;
+
+    // Skip excluded regions
+    if (isExcluded(region)) continue;
 
     // Check timeframe filter
     const rowDate = dateCol ? row[dateCol] : '';

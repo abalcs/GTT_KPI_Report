@@ -10,8 +10,6 @@ import {
   PieChart,
   Pie,
   Legend,
-  LineChart,
-  Line,
 } from 'recharts';
 import type { RawParsedData } from '../utils/indexedDB';
 import {
@@ -82,45 +80,6 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
   const selectedAgentRegionalData = useMemo(() => {
     return filteredAgentRegionalPerformance.find(a => a.agentName === selectedAgentForRegions);
   }, [filteredAgentRegionalPerformance, selectedAgentForRegions]);
-
-  // Prepare trend chart data
-  const trendChartData = useMemo(() => {
-    if (!insights?.regionalTrends) return [];
-    const { periods, topRegionsByPeriod } = insights.regionalTrends;
-
-    // Get top 5 regions across all periods
-    const regionCounts: Record<string, number> = {};
-    for (const period of periods) {
-      const regions = topRegionsByPeriod.get(period) || [];
-      for (const r of regions.slice(0, 3)) {
-        regionCounts[r.region] = (regionCounts[r.region] || 0) + 1;
-      }
-    }
-
-    const topRegions = Object.entries(regionCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([region]) => region);
-
-    // Build chart data
-    return periods.map(period => {
-      const periodData: Record<string, number | string> = { period };
-      const regions = topRegionsByPeriod.get(period) || [];
-
-      for (const region of topRegions) {
-        const regionPerf = regions.find(r => r.region === region);
-        periodData[region] = regionPerf ? parseFloat(regionPerf.tpRate.toFixed(1)) : 0;
-      }
-
-      return periodData;
-    });
-  }, [insights?.regionalTrends]);
-
-  const trendRegions = useMemo(() => {
-    if (trendChartData.length === 0) return [];
-    const keys = Object.keys(trendChartData[0] || {}).filter(k => k !== 'period');
-    return keys;
-  }, [trendChartData]);
 
   const handleSaveApiKey = useCallback(() => {
     if (apiKey) {
@@ -556,57 +515,45 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
             </div>
           </div>
 
-          {/* Regional Performance Bar Chart */}
+          {/* Regional Performance Full List */}
           <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-            <h4 className="text-sm font-medium text-slate-300 mb-4">Department Regional T&gt;P Rates (Top 10)</h4>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart
-                data={filteredRegionalPerformance.allRegions.slice(0, 10).map(r => ({
-                  region: r.region.length > 20 ? r.region.substring(0, 20) + '...' : r.region,
-                  tpRate: parseFloat(r.tpRate.toFixed(1)),
-                  trips: r.trips,
-                  passthroughs: r.passthroughs,
-                }))}
-                layout="vertical"
-                margin={{ left: 10, right: 30 }}
-              >
-                <XAxis
-                  type="number"
-                  domain={[0, 100]}
-                  tick={{ fill: '#94a3b8', fontSize: 12 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `${v}%`}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="region"
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={150}
-                />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }}
-                  labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                  formatter={(value, _name, props) => {
-                    const payload = props?.payload as { trips: number; passthroughs: number } | undefined;
-                    if (value === undefined || !payload) return ['', ''];
-                    return [`${value}% (${payload.passthroughs}/${payload.trips} trips)`, 'T>P Rate'];
-                  }}
-                />
-                <Bar
-                  dataKey="tpRate"
-                  radius={[0, 4, 4, 0]}
-                  label={{ position: 'right', fill: '#e2e8f0', fontSize: 11, formatter: (v) => `${v}%` }}
-                  activeBar={false}
-                >
-                  {filteredRegionalPerformance.allRegions.slice(0, 10).map((_, index) => (
-                    <Cell key={index} fill={index < 3 ? '#14b8a6' : index < 7 ? '#6366f1' : '#f43f5e'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <h4 className="text-sm font-medium text-slate-300 mb-4">
+              All Regions by T&gt;P Rate ({filteredRegionalPerformance.allRegions.length} regions)
+            </h4>
+            <div className="max-h-[400px] overflow-y-auto">
+              <table className="w-full">
+                <thead className="sticky top-0 bg-slate-800">
+                  <tr className="text-left text-xs text-slate-400 border-b border-slate-700">
+                    <th className="pb-2 pl-2">#</th>
+                    <th className="pb-2">Region</th>
+                    <th className="pb-2 text-right">T&gt;P Rate</th>
+                    <th className="pb-2 text-right">Trips</th>
+                    <th className="pb-2 text-right pr-2">Passthroughs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRegionalPerformance.allRegions.map((region, index) => {
+                    const isTop = index < 3;
+                    const isBottom = index >= filteredRegionalPerformance.allRegions.length - 3;
+                    const rateColor = isTop ? 'text-teal-400' : isBottom ? 'text-rose-400' : 'text-white';
+                    return (
+                      <tr
+                        key={region.region}
+                        className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors"
+                      >
+                        <td className="py-2 pl-2 text-xs text-slate-500">{index + 1}</td>
+                        <td className="py-2 text-sm text-slate-200">{region.region}</td>
+                        <td className={`py-2 text-right text-sm font-medium ${rateColor}`}>
+                          {region.tpRate.toFixed(1)}%
+                        </td>
+                        <td className="py-2 text-right text-sm text-slate-400">{region.trips}</td>
+                        <td className="py-2 text-right text-sm text-slate-400 pr-2">{region.passthroughs}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Agent Regional Performance */}
@@ -669,50 +616,6 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
             </div>
           )}
 
-          {/* Regional Trends Chart */}
-          {trendChartData.length > 0 && trendRegions.length > 0 && (
-            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-              <h4 className="text-sm font-medium text-slate-300 mb-4">Regional T&gt;P Trends Over Time</h4>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={trendChartData} margin={{ left: 10, right: 30 }}>
-                  <XAxis
-                    dataKey="period"
-                    tick={{ fill: '#94a3b8', fontSize: 12 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    domain={[0, 'auto']}
-                    tick={{ fill: '#94a3b8', fontSize: 12 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => `${v}%`}
-                  />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }}
-                    labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                    formatter={(value) => value !== undefined ? [`${value}%`, 'T>P Rate'] : ['', '']}
-                  />
-                  <Legend
-                    formatter={(value) => <span className="text-xs text-slate-300">{value}</span>}
-                    wrapperStyle={{ fontSize: '10px' }}
-                  />
-                  {trendRegions.map((region, i) => (
-                    <Line
-                      key={region}
-                      type="monotone"
-                      dataKey={region}
-                      name={region}
-                      stroke={COLORS[i % COLORS.length]}
-                      strokeWidth={2}
-                      dot={{ fill: COLORS[i % COLORS.length], strokeWidth: 0, r: 4 }}
-                      activeDot={{ r: 6 }}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
         </div>
       )}
 
