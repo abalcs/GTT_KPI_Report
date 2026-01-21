@@ -6,6 +6,8 @@ import { TeamComparison } from './components/TeamComparison';
 import { DateRangeFilter } from './components/DateRangeFilter';
 import { TrendsView } from './components/TrendsView';
 import { InsightsView } from './components/InsightsView';
+import { RecordsView } from './components/RecordsView';
+import { RecordNotification } from './components/RecordNotification';
 import { PresentationGenerator } from './components/PresentationGenerator';
 import { AgentAnalytics } from './components/AgentAnalytics';
 import type { Team, Metrics, FileUploadState, TimeSeriesData } from './types';
@@ -22,6 +24,13 @@ import {
   calculateMetrics,
   buildTimeSeriesOptimized
 } from './utils/metricsCalculator';
+import {
+  loadRecords,
+  saveRecords,
+  analyzeAndUpdateRecords,
+  type AllRecords,
+  type RecordUpdate,
+} from './utils/recordsTracker';
 
 function App() {
   const [files, setFiles] = useState<FileUploadState>({
@@ -38,14 +47,16 @@ function App() {
   const [metrics, setMetrics] = useState<Metrics[]>([]);
   const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData | null>(null);
   const [rawParsedData, setRawParsedData] = useState<RawParsedData | null>(null);
-  const [activeView, setActiveView] = useState<'summary' | 'trends' | 'insights'>(() => {
+  const [activeView, setActiveView] = useState<'summary' | 'trends' | 'insights' | 'records'>(() => {
     const saved = localStorage.getItem('gtt-active-view');
-    if (saved === 'summary' || saved === 'trends' || saved === 'insights') {
+    if (saved === 'summary' || saved === 'trends' || saved === 'insights' || saved === 'records') {
       return saved;
     }
     return 'summary';
   });
   const [error, setError] = useState<string | null>(null);
+  const [records, setRecords] = useState<AllRecords>(() => loadRecords());
+  const [pendingNotifications, setPendingNotifications] = useState<RecordUpdate[]>([]);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [showDataPanel, setShowDataPanel] = useState(true);
@@ -230,6 +241,16 @@ function App() {
 
       setTimeSeriesData(tsData);
       saveTimeSeriesData(tsData);
+
+      // Analyze and update personal records
+      const currentRecords = loadRecords();
+      const { updatedRecords, updates } = analyzeAndUpdateRecords(tsData, currentRecords);
+
+      if (updates.length > 0) {
+        saveRecords(updatedRecords);
+        setRecords(updatedRecords);
+        setPendingNotifications(updates);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while processing files');
     }
@@ -256,6 +277,14 @@ function App() {
   const handleClearDateFilter = useCallback(() => {
     setStartDate('');
     setEndDate('');
+  }, []);
+
+  const handleClearRecords = useCallback(() => {
+    setRecords({ agents: {}, lastUpdated: new Date().toISOString() });
+  }, []);
+
+  const handleDismissNotifications = useCallback(() => {
+    setPendingNotifications([]);
   }, []);
 
   const allAgentNames = useMemo(() => metrics.map((m) => m.agentName), [metrics]);
@@ -455,6 +484,16 @@ function App() {
               >
                 Insights
               </button>
+              <button
+                onClick={() => setActiveView('records')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  activeView === 'records'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                }`}
+              >
+                Records
+              </button>
             </div>
 
             {activeView === 'summary' && (
@@ -488,6 +527,19 @@ function App() {
         {/* Insights View */}
         {activeView === 'insights' && rawParsedData && (
           <InsightsView rawData={rawParsedData} />
+        )}
+
+        {/* Records View */}
+        {activeView === 'records' && (
+          <RecordsView records={records} onClearRecords={handleClearRecords} />
+        )}
+
+        {/* Record Notifications */}
+        {pendingNotifications.length > 0 && (
+          <RecordNotification
+            updates={pendingNotifications}
+            onDismiss={handleDismissNotifications}
+          />
         )}
 
         {/* Empty State */}
