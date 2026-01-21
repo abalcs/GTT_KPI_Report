@@ -149,6 +149,19 @@ export interface AgentImprovementRecommendation {
   reason: string;
 }
 
+export interface DepartmentImprovementRecommendation {
+  region: string;
+  priority: 'high' | 'medium' | 'low';
+  tpRate: number;
+  departmentAvgRate: number;
+  deviation: number; // negative = below department avg
+  trips: number;
+  passthroughs: number;
+  potentialGain: number; // additional passthroughs if matched dept avg
+  impactScore: number;
+  reason: string;
+}
+
 export interface AgentRegionalPerformance {
   agentName: string;
   topRegions: RegionalPerformance[];
@@ -579,6 +592,77 @@ export const analyzeRegionalPerformance = (
     totalPassthroughs,
     overallTpRate: totalTrips > 0 ? (totalPassthroughs / totalTrips) * 100 : 0,
   };
+};
+
+export const generateDepartmentRecommendations = (
+  performance: DepartmentRegionalPerformance
+): DepartmentImprovementRecommendation[] => {
+  if (performance.allRegions.length === 0) return [];
+
+  const deptAvgRate = performance.overallTpRate;
+  const totalTrips = performance.totalTrips;
+
+  // Find regions performing below department average
+  const belowAverage = performance.allRegions
+    .filter(r => r.tpRate < deptAvgRate && r.trips >= 3)
+    .map(r => {
+      const deviation = r.tpRate - deptAvgRate;
+      // Calculate potential gain: if this region matched dept avg, how many more passthroughs?
+      const expectedPassthroughs = (deptAvgRate / 100) * r.trips;
+      const potentialGain = Math.max(0, expectedPassthroughs - r.passthroughs);
+
+      // Impact score: combines volume with deviation
+      // Higher volume + larger gap = higher impact
+      const volumeWeight = Math.sqrt(r.trips / Math.max(totalTrips, 1));
+      const impactScore = Math.abs(deviation) * volumeWeight * 100 + potentialGain;
+
+      return {
+        region: r.region,
+        tpRate: r.tpRate,
+        departmentAvgRate: deptAvgRate,
+        deviation,
+        trips: r.trips,
+        passthroughs: r.passthroughs,
+        potentialGain,
+        impactScore,
+      };
+    })
+    .sort((a, b) => b.impactScore - a.impactScore);
+
+  // Generate recommendations with priorities
+  return belowAverage.slice(0, 5).map((r, index) => {
+    let priority: 'high' | 'medium' | 'low';
+    if (index === 0 && r.impactScore > 10) {
+      priority = 'high';
+    } else if (index < 2 && r.impactScore > 5) {
+      priority = 'medium';
+    } else {
+      priority = 'low';
+    }
+
+    // Generate reason
+    let reason: string;
+    const deviationAbs = Math.abs(r.deviation).toFixed(1);
+    const potentialGainRounded = Math.round(r.potentialGain);
+
+    if (r.trips > 100 && Math.abs(r.deviation) > 10) {
+      reason = `High-volume region with ${r.trips} trips and ${deviationAbs}pp gap. Could gain ~${potentialGainRounded} passthroughs.`;
+    } else if (r.trips > 100) {
+      reason = `High-volume region (${r.trips} trips). Even small improvements have significant impact.`;
+    } else if (Math.abs(r.deviation) > 15) {
+      reason = `Large performance gap of ${deviationAbs}pp below average. Training opportunity.`;
+    } else if (potentialGainRounded > 5) {
+      reason = `Could gain ~${potentialGainRounded} passthroughs by matching department average.`;
+    } else {
+      reason = `${deviationAbs}pp below department average with ${r.trips} trips.`;
+    }
+
+    return {
+      ...r,
+      priority,
+      reason,
+    };
+  });
 };
 
 export const analyzeRegionalPerformanceByAgent = (

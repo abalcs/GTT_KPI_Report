@@ -9,7 +9,6 @@ import {
   Cell,
   PieChart,
   Pie,
-  Legend,
 } from 'recharts';
 import type { RawParsedData } from '../utils/indexedDB';
 import {
@@ -18,10 +17,12 @@ import {
   discoverColumns,
   analyzeRegionalPerformance,
   analyzeAgentRegionalDeviations,
+  generateDepartmentRecommendations,
   type InsightsData,
   type RegionalTimeframe,
   type DepartmentRegionalPerformance,
   type AgentRegionalAnalysis,
+  type DepartmentImprovementRecommendation,
 } from '../utils/insightsAnalytics';
 import {
   loadAnthropicApiKey,
@@ -46,6 +47,15 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
   const [selectedAgentForReasons, setSelectedAgentForReasons] = useState<string>('');
   const [regionalTimeframe, setRegionalTimeframe] = useState<RegionalTimeframe>('all');
   const [selectedAgentForRegions, setSelectedAgentForRegions] = useState<string>('');
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    timing: true,
+    regional: true,
+    leadQuality: false,
+  });
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
 
   // Load API key
   useEffect(() => {
@@ -80,6 +90,11 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
   const selectedAgentAnalysis = useMemo(() => {
     return filteredAgentRegionalAnalysis.find(a => a.agentName === selectedAgentForRegions);
   }, [filteredAgentRegionalAnalysis, selectedAgentForRegions]);
+
+  const departmentRecommendations = useMemo<DepartmentImprovementRecommendation[]>(() => {
+    if (!filteredRegionalPerformance) return [];
+    return generateDepartmentRecommendations(filteredRegionalPerformance);
+  }, [filteredRegionalPerformance]);
 
   const handleSaveApiKey = useCallback(() => {
     if (apiKey) {
@@ -144,6 +159,44 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
     a => a.agentName === selectedAgentForReasons
   );
 
+  // Section Header component for consistency
+  const SectionHeader = ({
+    title,
+    icon,
+    iconColor,
+    section,
+    subtitle
+  }: {
+    title: string;
+    icon: React.ReactNode;
+    iconColor: string;
+    section: string;
+    subtitle?: string;
+  }) => (
+    <button
+      onClick={() => toggleSection(section)}
+      className="w-full flex items-center justify-between p-3 bg-slate-800/30 rounded-lg hover:bg-slate-800/50 transition-colors group"
+    >
+      <div className="flex items-center gap-3">
+        <div className={`p-2 ${iconColor} rounded-lg`}>
+          {icon}
+        </div>
+        <div className="text-left">
+          <h3 className="text-lg font-semibold text-white">{title}</h3>
+          {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
+        </div>
+      </div>
+      <svg
+        className={`w-5 h-5 text-slate-400 transition-transform ${expandedSections[section] ? 'rotate-180' : ''}`}
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    </button>
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -163,7 +216,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
           onClick={() => setShowColumns(!showColumns)}
           className="text-xs text-slate-500 hover:text-slate-300"
         >
-          {showColumns ? 'Hide' : 'Show'} available columns
+          {showColumns ? 'Hide' : 'Show'} columns
         </button>
       </div>
 
@@ -187,252 +240,173 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
         </div>
       )}
 
-      {/* Overview Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-          <div className="text-2xl font-bold text-white">{insights.totalPassthroughs.toLocaleString()}</div>
-          <div className="text-sm text-slate-400">Total Passthroughs</div>
+      {/* Quick Stats Bar */}
+      <div className="grid grid-cols-4 gap-3">
+        <div className="bg-slate-800/40 rounded-lg p-3 text-center border border-slate-700/30">
+          <div className="text-lg font-bold text-white">{insights.totalPassthroughs.toLocaleString()}</div>
+          <div className="text-xs text-slate-500">Passthroughs</div>
         </div>
-        <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-          <div className="text-2xl font-bold text-white">{insights.totalHotPass.toLocaleString()}</div>
-          <div className="text-sm text-slate-400">Total Hot Passes</div>
+        <div className="bg-slate-800/40 rounded-lg p-3 text-center border border-slate-700/30">
+          <div className="text-lg font-bold text-white">{insights.totalHotPass.toLocaleString()}</div>
+          <div className="text-xs text-slate-500">Hot Passes</div>
         </div>
-        <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-          <div className="text-2xl font-bold text-white">{insights.totalBookings.toLocaleString()}</div>
-          <div className="text-sm text-slate-400">Total Bookings</div>
+        <div className="bg-slate-800/40 rounded-lg p-3 text-center border border-slate-700/30">
+          <div className="text-lg font-bold text-white">{insights.totalBookings.toLocaleString()}</div>
+          <div className="text-xs text-slate-500">Bookings</div>
         </div>
-        <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-          <div className="text-2xl font-bold text-white">{insights.totalNonValidated.toLocaleString()}</div>
-          <div className="text-sm text-slate-400">Non-Validated Leads</div>
+        <div className="bg-slate-800/40 rounded-lg p-3 text-center border border-slate-700/30">
+          <div className="text-lg font-bold text-white">{insights.totalNonValidated.toLocaleString()}</div>
+          <div className="text-xs text-slate-500">Non-Validated</div>
         </div>
       </div>
 
-      {/* Best Day/Time Cards - Passthroughs */}
-      {(insights.bestPassthroughDay || insights.bestPassthroughTime) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {insights.bestPassthroughDay && (
-            <div className="bg-gradient-to-br from-indigo-600/20 to-purple-600/20 rounded-xl p-4 border border-indigo-500/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-500/20 rounded-lg">
-                  <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <div className="text-sm text-indigo-300">Best Day for Passthroughs</div>
-                  <div className="text-xl font-bold text-white">{insights.bestPassthroughDay}</div>
-                  <div className="text-xs text-slate-400">
-                    {insights.passthroughsByDay[0]?.count.toLocaleString()} passthroughs ({insights.passthroughsByDay[0]?.percentage.toFixed(1)}%)
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          {insights.bestPassthroughTime && (
-            <div className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 rounded-xl p-4 border border-purple-500/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-500/20 rounded-lg">
-                  <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <div className="text-sm text-purple-300">Best Time for Passthroughs</div>
-                  <div className="text-xl font-bold text-white">{insights.bestPassthroughTime}</div>
-                  <div className="text-xs text-slate-400">
-                    {insights.passthroughsByTime[0]?.count.toLocaleString()} passthroughs ({insights.passthroughsByTime[0]?.percentage.toFixed(1)}%)
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* ==================== TIMING INSIGHTS SECTION ==================== */}
+      <div className="space-y-4">
+        <SectionHeader
+          title="Timing Insights"
+          icon={<svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>}
+          iconColor="bg-purple-500/20"
+          section="timing"
+          subtitle="Best days and times for passthroughs and hot passes"
+        />
 
-      {/* Best Day/Time Cards - Hot Passes */}
-      {(insights.bestHotPassDay || insights.bestHotPassTime) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {insights.bestHotPassDay && (
-            <div className="bg-gradient-to-br from-orange-600/20 to-amber-600/20 rounded-xl p-4 border border-orange-500/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-500/20 rounded-lg">
-                  <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
+        {expandedSections.timing && (
+          <div className="space-y-4 pl-2 border-l-2 border-purple-500/20">
+            {/* Best Day/Time Summary Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {insights.bestPassthroughDay && (
+                <div className="bg-gradient-to-br from-indigo-600/20 to-purple-600/20 rounded-lg p-3 border border-indigo-500/30">
+                  <div className="text-xs text-indigo-300 mb-1">Best Day - Passthroughs</div>
+                  <div className="text-lg font-bold text-white">{insights.bestPassthroughDay}</div>
+                  <div className="text-xs text-slate-400">{insights.passthroughsByDay[0]?.percentage.toFixed(0)}% of total</div>
                 </div>
-                <div>
-                  <div className="text-sm text-orange-300">Best Day for Hot Passes</div>
-                  <div className="text-xl font-bold text-white">{insights.bestHotPassDay}</div>
-                  <div className="text-xs text-slate-400">
-                    {insights.hotPassByDay[0]?.count.toLocaleString()} hot passes ({insights.hotPassByDay[0]?.percentage.toFixed(1)}%)
-                  </div>
+              )}
+              {insights.bestPassthroughTime && (
+                <div className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 rounded-lg p-3 border border-purple-500/30">
+                  <div className="text-xs text-purple-300 mb-1">Best Time - Passthroughs</div>
+                  <div className="text-lg font-bold text-white">{insights.bestPassthroughTime.split(' ')[0]}</div>
+                  <div className="text-xs text-slate-400">{insights.passthroughsByTime[0]?.percentage.toFixed(0)}% of total</div>
                 </div>
-              </div>
+              )}
+              {insights.bestHotPassDay && (
+                <div className="bg-gradient-to-br from-orange-600/20 to-amber-600/20 rounded-lg p-3 border border-orange-500/30">
+                  <div className="text-xs text-orange-300 mb-1">Best Day - Hot Passes</div>
+                  <div className="text-lg font-bold text-white">{insights.bestHotPassDay}</div>
+                  <div className="text-xs text-slate-400">{insights.hotPassByDay[0]?.percentage.toFixed(0)}% of total</div>
+                </div>
+              )}
+              {insights.bestHotPassTime && (
+                <div className="bg-gradient-to-br from-amber-600/20 to-yellow-600/20 rounded-lg p-3 border border-amber-500/30">
+                  <div className="text-xs text-amber-300 mb-1">Best Time - Hot Passes</div>
+                  <div className="text-lg font-bold text-white">{insights.bestHotPassTime.split(' ')[0]}</div>
+                  <div className="text-xs text-slate-400">{insights.hotPassByTime[0]?.percentage.toFixed(0)}% of total</div>
+                </div>
+              )}
             </div>
-          )}
-          {insights.bestHotPassTime && (
-            <div className="bg-gradient-to-br from-amber-600/20 to-yellow-600/20 rounded-xl p-4 border border-amber-500/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-500/20 rounded-lg">
-                  <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+
+            {/* Charts Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Passthroughs by Day */}
+              {insights.passthroughsByDay.length > 0 && (
+                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                  <h4 className="text-xs font-medium text-slate-400 mb-3">Passthroughs by Day</h4>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={insights.passthroughsByDay.map(d => ({ ...d, label: `${d.percentage.toFixed(0)}%` }))}>
+                      <XAxis dataKey="day" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }} />
+                      <Bar dataKey="count" radius={[4, 4, 0, 0]} activeBar={false}>
+                        {insights.passthroughsByDay.map((_, index) => (
+                          <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-                <div>
-                  <div className="text-sm text-amber-300">Best Time for Hot Passes</div>
-                  <div className="text-xl font-bold text-white">{insights.bestHotPassTime}</div>
-                  <div className="text-xs text-slate-400">
-                    {insights.hotPassByTime[0]?.count.toLocaleString()} hot passes ({insights.hotPassByTime[0]?.percentage.toFixed(1)}%)
-                  </div>
+              )}
+
+              {/* Hot Passes by Day */}
+              {insights.hotPassByDay.length > 0 && (
+                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                  <h4 className="text-xs font-medium text-slate-400 mb-3">Hot Passes by Day</h4>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={insights.hotPassByDay.map(d => ({ ...d, label: `${d.percentage.toFixed(0)}%` }))}>
+                      <XAxis dataKey="day" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }} />
+                      <Bar dataKey="count" radius={[4, 4, 0, 0]} fill="#f97316" activeBar={false} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+              )}
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Passthroughs by Day */}
-        {insights.passthroughsByDay.length > 0 && (
-          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-            <h3 className="text-sm font-medium text-slate-300 mb-4">Passthroughs by Day of Week</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={insights.passthroughsByDay.map(d => ({ ...d, label: `${d.percentage.toFixed(1)}%` }))}>
-                <XAxis dataKey="day" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }}
-                  labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                  itemStyle={{ color: '#e2e8f0' }}
-                />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]} label={{ position: 'top', fill: '#e2e8f0', fontSize: 11, dataKey: 'label' }} activeBar={false}>
-                  {insights.passthroughsByDay.map((_, index) => (
-                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+              {/* Passthroughs by Time */}
+              {insights.hasTimeData && insights.passthroughsByTime.length > 0 && (
+                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                  <h4 className="text-xs font-medium text-slate-400 mb-3">Passthroughs by Time</h4>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={insights.passthroughsByTime} layout="vertical">
+                      <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="timeSlot" tick={{ fill: '#94a3b8', fontSize: 9 }} axisLine={false} tickLine={false} width={100} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }} />
+                      <Bar dataKey="count" radius={[0, 4, 4, 0]} activeBar={false}>
+                        {insights.passthroughsByTime.map((_, index) => (
+                          <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
 
-        {/* Passthroughs by Time */}
-        {insights.hasTimeData && insights.passthroughsByTime.length > 0 && (
-          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-            <h3 className="text-sm font-medium text-slate-300 mb-4">Passthroughs by Time of Day</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={insights.passthroughsByTime.map(t => ({ ...t, label: `${t.percentage.toFixed(1)}%` }))} layout="vertical">
-                <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="timeSlot" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} width={120} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }}
-                  labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                  itemStyle={{ color: '#e2e8f0' }}
-                />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]} label={{ position: 'right', fill: '#e2e8f0', fontSize: 11, dataKey: 'label' }} activeBar={false}>
-                  {insights.passthroughsByTime.map((_, index) => (
-                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {!insights.hasTimeData && (
-          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 flex items-center justify-center">
-            <div className="text-center text-slate-500">
-              <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-sm">Time-of-day data not available</p>
-              <p className="text-xs mt-1">Timestamps may only include dates</p>
+              {/* Hot Passes by Time */}
+              {insights.hasHotPassTimeData && insights.hotPassByTime.length > 0 && (
+                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                  <h4 className="text-xs font-medium text-slate-400 mb-3">Hot Passes by Time</h4>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={insights.hotPassByTime} layout="vertical">
+                      <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="timeSlot" tick={{ fill: '#94a3b8', fontSize: 9 }} axisLine={false} tickLine={false} width={100} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }} />
+                      <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="#f59e0b" activeBar={false} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
           </div>
         )}
       </div>
 
-      {/* Hot Pass Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Hot Passes by Day */}
-        {insights.hotPassByDay.length > 0 && (
-          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-            <h3 className="text-sm font-medium text-slate-300 mb-4">Hot Passes by Day of Week</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={insights.hotPassByDay.map(d => ({ ...d, label: `${d.percentage.toFixed(1)}%` }))}>
-                <XAxis dataKey="day" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }}
-                  labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                  itemStyle={{ color: '#e2e8f0' }}
-                />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]} fill="#f97316" label={{ position: 'top', fill: '#e2e8f0', fontSize: 11, dataKey: 'label' }} activeBar={false} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+      {/* ==================== REGIONAL PERFORMANCE SECTION ==================== */}
+      <div className="space-y-4">
+        <SectionHeader
+          title="Regional Performance"
+          icon={<svg className="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>}
+          iconColor="bg-teal-500/20"
+          section="regional"
+          subtitle="T>P conversion rates by region with improvement opportunities"
+        />
 
-        {/* Hot Passes by Time */}
-        {insights.hasHotPassTimeData && insights.hotPassByTime.length > 0 && (
-          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-            <h3 className="text-sm font-medium text-slate-300 mb-4">Hot Passes by Time of Day</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={insights.hotPassByTime.map(t => ({ ...t, label: `${t.percentage.toFixed(1)}%` }))} layout="vertical">
-                <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="timeSlot" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} width={120} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }}
-                  labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                  itemStyle={{ color: '#e2e8f0' }}
-                />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="#f59e0b" label={{ position: 'right', fill: '#e2e8f0', fontSize: 11, dataKey: 'label' }} activeBar={false} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {insights.hotPassByDay.length > 0 && !insights.hasHotPassTimeData && (
-          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 flex items-center justify-center">
-            <div className="text-center text-slate-500">
-              <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-sm">Hot pass time-of-day data not available</p>
-              <p className="text-xs mt-1">Timestamps may only include dates</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Regional Performance Section */}
-      {(filteredRegionalPerformance && filteredRegionalPerformance.allRegions.length > 0) && (
-        <div className="space-y-6">
-          {/* Section Header with Timeframe Toggle */}
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <svg className="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Regional T&gt;P Performance
-              </h3>
-              <p className="text-sm text-slate-400 mt-1">
-                Trip-to-Passthrough conversion rates by region/country
-              </p>
-            </div>
-            <div className="flex gap-1 bg-slate-800/50 p-1 rounded-lg">
+        {expandedSections.regional && filteredRegionalPerformance && filteredRegionalPerformance.allRegions.length > 0 && (
+          <div className="space-y-4 pl-2 border-l-2 border-teal-500/20">
+            {/* Timeframe Toggle */}
+            <div className="flex gap-1 bg-slate-800/50 p-1 rounded-lg w-fit">
               {[
                 { value: 'week', label: 'Week' },
                 { value: 'month', label: 'Month' },
                 { value: 'quarter', label: 'Quarter' },
                 { value: 'ytd', label: 'YTD' },
-                { value: 'all', label: 'All Time' },
+                { value: 'all', label: 'All' },
               ].map(({ value, label }) => (
                 <button
                   key={value}
                   onClick={() => setRegionalTimeframe(value as RegionalTimeframe)}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                  className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
                     regionalTimeframe === value
                       ? 'bg-teal-600 text-white'
                       : 'text-slate-400 hover:text-white hover:bg-slate-700'
@@ -442,7 +416,6 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
                 </button>
               ))}
             </div>
-          </div>
 
           {/* Department Overview Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -555,6 +528,61 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
               </table>
             </div>
           </div>
+
+          {/* Department Improvement Recommendations */}
+          {departmentRecommendations.length > 0 && (
+            <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 rounded-xl p-4 border border-indigo-600/30">
+              <div className="flex items-center gap-2 mb-4">
+                <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+                <h4 className="text-sm font-medium text-indigo-300">Department Focus Areas</h4>
+                <span className="text-xs text-indigo-500/70">Regions with highest improvement potential</span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+                {departmentRecommendations.map((rec, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-lg p-3 border ${
+                      rec.priority === 'high'
+                        ? 'bg-rose-900/30 border-rose-600/40'
+                        : rec.priority === 'medium'
+                        ? 'bg-amber-900/30 border-amber-600/40'
+                        : 'bg-slate-800/50 border-slate-600/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                        rec.priority === 'high'
+                          ? 'bg-rose-500/30 text-rose-300'
+                          : rec.priority === 'medium'
+                          ? 'bg-amber-500/30 text-amber-300'
+                          : 'bg-slate-500/30 text-slate-300'
+                      }`}>
+                        {rec.priority.toUpperCase()}
+                      </span>
+                      <span className="text-white font-medium text-sm truncate">{rec.region}</span>
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm">
+                        <span className="text-rose-400 font-medium">{rec.tpRate.toFixed(1)}%</span>
+                        <span className="text-slate-500 mx-1">vs</span>
+                        <span className="text-slate-300">{rec.departmentAvgRate.toFixed(1)}% avg</span>
+                      </div>
+                      <span className="text-xs text-rose-400">{rec.deviation.toFixed(1)}pp</span>
+                    </div>
+                    <p className="text-xs text-slate-400 mb-2">{rec.reason}</p>
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span>{rec.trips} trips</span>
+                      {rec.potentialGain > 0 && (
+                        <span className="text-teal-400">+{Math.round(rec.potentialGain)} potential</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Agent Regional Performance with Deviations */}
           {filteredAgentRegionalAnalysis.length > 0 && (
@@ -700,103 +728,112 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ rawData }) => {
             </div>
           )}
 
-        </div>
-      )}
-
-      {/* Non-Validated Reasons */}
-      {insights.hasNonValidatedReasons && (
-        <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-          <h3 className="text-sm font-medium text-slate-300 mb-4">Top Non-Validated Reasons (Department)</h3>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={insights.topNonValidatedReasons.slice(0, 6).map(r => ({
-                      name: r.reason,
-                      value: r.count,
-                      pct: r.percentage,
-                    }))}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label={({ payload }) => `${(payload?.pct as number)?.toFixed(0) || 0}%`}
-                    labelLine={false}
-                  >
-                    {insights.topNonValidatedReasons.slice(0, 6).map((_, index) => (
-                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }}
-                    labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                    itemStyle={{ color: '#e2e8f0' }}
-                  />
-                  <Legend
-                    formatter={(value) => <span className="text-xs text-slate-300">{value}</span>}
-                    wrapperStyle={{ fontSize: '10px' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="space-y-2">
-              {insights.topNonValidatedReasons.map((r, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-slate-700/50 last:border-0">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-sm text-slate-300 truncate max-w-[200px]">{r.reason}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm font-medium text-white">{r.count.toLocaleString()}</span>
-                    <span className="text-xs text-slate-500 ml-2">({r.percentage.toFixed(1)}%)</span>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Agent-Level Non-Validated */}
-      {insights.agentNonValidated.length > 0 && (
-        <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-          <h3 className="text-sm font-medium text-slate-300 mb-4">Non-Validated Reasons by Agent</h3>
-          <div className="flex flex-wrap gap-4">
-            <select
-              value={selectedAgentForReasons}
-              onChange={(e) => setSelectedAgentForReasons(e.target.value)}
-              className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white"
-            >
-              <option value="">Select agent...</option>
-              {insights.agentNonValidated.map(a => (
-                <option key={a.agentName} value={a.agentName}>
-                  {a.agentName} ({a.total})
-                </option>
-              ))}
-            </select>
+      {/* ==================== LEAD QUALITY SECTION ==================== */}
+      {(insights.hasNonValidatedReasons || insights.agentNonValidated.length > 0) && (
+        <div className="space-y-4">
+          <SectionHeader
+            title="Lead Quality"
+            icon={<svg className="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>}
+            iconColor="bg-rose-500/20"
+            section="leadQuality"
+            subtitle="Non-validated lead analysis and reasons"
+          />
 
-            {selectedAgentReasons && (
-              <div className="flex-1 min-w-[300px]">
-                <div className="text-sm text-white mb-2">
-                  <strong>{selectedAgentReasons.agentName}</strong> - {selectedAgentReasons.total} non-validated leads
-                </div>
-                <div className="space-y-1">
-                  {selectedAgentReasons.topReasons.map((r, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm">
-                      <span className="text-slate-400">{r.reason}</span>
-                      <span className="text-white">{r.count} ({r.percentage.toFixed(1)}%)</span>
+          {expandedSections.leadQuality && (
+            <div className="space-y-4 pl-2 border-l-2 border-rose-500/20">
+              {/* Non-Validated Reasons */}
+              {insights.hasNonValidatedReasons && (
+                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                  <h4 className="text-sm font-medium text-slate-300 mb-4">Top Non-Validated Reasons</h4>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <PieChart>
+                          <Pie
+                            data={insights.topNonValidatedReasons.slice(0, 6).map(r => ({
+                              name: r.reason,
+                              value: r.count,
+                              pct: r.percentage,
+                            }))}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={70}
+                            label={({ payload }) => `${(payload?.pct as number)?.toFixed(0) || 0}%`}
+                            labelLine={false}
+                          >
+                            {insights.topNonValidatedReasons.slice(0, 6).map((_, index) => (
+                              <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                  ))}
+                    <div className="space-y-2">
+                      {insights.topNonValidatedReasons.slice(0, 6).map((r, i) => (
+                        <div key={i} className="flex items-center justify-between py-1.5 border-b border-slate-700/50 last:border-0">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                            <span className="text-xs text-slate-300 truncate max-w-[150px]">{r.reason}</span>
+                          </div>
+                          <span className="text-xs font-medium text-white">{r.percentage.toFixed(0)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+
+              {/* Agent-Level Non-Validated */}
+              {insights.agentNonValidated.length > 0 && (
+                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                  <h4 className="text-sm font-medium text-slate-300 mb-4">By Agent</h4>
+                  <div className="flex flex-wrap gap-4">
+                    <select
+                      value={selectedAgentForReasons}
+                      onChange={(e) => setSelectedAgentForReasons(e.target.value)}
+                      className="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white"
+                    >
+                      <option value="">Select agent...</option>
+                      {insights.agentNonValidated.map(a => (
+                        <option key={a.agentName} value={a.agentName}>
+                          {a.agentName} ({a.total})
+                        </option>
+                      ))}
+                    </select>
+
+                    {selectedAgentReasons && (
+                      <div className="flex-1 min-w-[300px]">
+                        <div className="text-sm text-white mb-2">
+                          <strong>{selectedAgentReasons.agentName}</strong> - {selectedAgentReasons.total} non-validated
+                        </div>
+                        <div className="space-y-1">
+                          {selectedAgentReasons.topReasons.map((r, i) => (
+                            <div key={i} className="flex items-center justify-between text-sm">
+                              <span className="text-slate-400">{r.reason}</span>
+                              <span className="text-white">{r.count} ({r.percentage.toFixed(1)}%)</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* AI Analysis Section */}
+      {/* ==================== AI ANALYSIS SECTION ==================== */}
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
