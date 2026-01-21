@@ -296,16 +296,21 @@ export const calculateMetrics = (
   bookingsCounts: Map<string, number>,
   nonConvertedCounts: Map<string, number>
 ): Metrics[] => {
-  // Get all unique agents
+  // Get all unique agents - include hotPassCounts to capture all agents
   const allAgents = new Set<string>();
-  [tripsCounts, quotesCounts, passthroughsCounts, bookingsCounts, nonConvertedCounts].forEach(m => {
+  [tripsCounts, quotesCounts, passthroughsCounts, hotPassCounts, bookingsCounts, nonConvertedCounts].forEach(m => {
     m.forEach((_, agent) => allAgents.add(agent));
   });
 
-  // PERF: Pre-build normalized lookup map for case-insensitive matching - O(m) once instead of O(n*m)
+  // PERF: Pre-build normalized lookup maps for case-insensitive matching - O(m) once instead of O(n*m)
   const normalizedNonConverted = new Map<string, number>();
   for (const [key, value] of nonConvertedCounts.entries()) {
     normalizedNonConverted.set(key.toLowerCase().trim(), value);
+  }
+
+  const normalizedHotPass = new Map<string, number>();
+  for (const [key, value] of hotPassCounts.entries()) {
+    normalizedHotPass.set(key.toLowerCase().trim(), value);
   }
 
   const metrics: Metrics[] = [];
@@ -314,10 +319,15 @@ export const calculateMetrics = (
     const trips = tripsCounts.get(agentName) || 0;
     const quotes = quotesCounts.get(agentName) || 0;
     const passthroughs = passthroughsCounts.get(agentName) || 0;
-    const hotPasses = hotPassCounts.get(agentName) || 0;
     const bookings = bookingsCounts.get(agentName) || 0;
 
-    // PERF: O(1) lookup instead of O(m) iteration for case-insensitive match
+    // Case-insensitive match for hot passes
+    let hotPasses = hotPassCounts.get(agentName) || 0;
+    if (hotPasses === 0) {
+      hotPasses = normalizedHotPass.get(agentName.toLowerCase().trim()) || 0;
+    }
+
+    // Case-insensitive match for non-converted
     let nonConvertedCount = nonConvertedCounts.get(agentName) || 0;
     if (nonConvertedCount === 0) {
       nonConvertedCount = normalizedNonConverted.get(agentName.toLowerCase().trim()) || 0;
@@ -341,6 +351,33 @@ export const calculateMetrics = (
   }
 
   return metrics.sort((a, b) => a.agentName.localeCompare(b.agentName));
+};
+
+// Helper to find agent data with case-insensitive matching
+const findAgentData = <T>(
+  map: Map<string, T>,
+  agentName: string,
+  normalizedMap: Map<string, T>,
+  defaultValue: T
+): T => {
+  // Try exact match first
+  const exact = map.get(agentName);
+  if (exact !== undefined) return exact;
+
+  // Try case-insensitive match
+  const normalized = normalizedMap.get(agentName.toLowerCase().trim());
+  if (normalized !== undefined) return normalized;
+
+  return defaultValue;
+};
+
+// Build normalized lookup map for case-insensitive agent matching
+const buildNormalizedMap = <T>(map: Map<string, T>): Map<string, T> => {
+  const normalized = new Map<string, T>();
+  for (const [key, value] of map.entries()) {
+    normalized.set(key.toLowerCase().trim(), value);
+  }
+  return normalized;
 };
 
 // Build time series data efficiently
@@ -372,16 +409,28 @@ export const buildTimeSeriesOptimized = (
   const sortedDates = Array.from(allDates).sort();
   const seniorSet = new Set(seniors.map(s => s.toLowerCase()));
 
+  // Build normalized lookup maps for case-insensitive agent matching
+  const normalizedTrips = buildNormalizedMap(tripsByDate);
+  const normalizedQuotes = buildNormalizedMap(quotesByDate);
+  const normalizedPassthroughs = buildNormalizedMap(passthroughsByDate);
+  const normalizedHotPass = buildNormalizedMap(hotPassByDate);
+  const normalizedBookings = buildNormalizedMap(bookingsByDate);
+  const normalizedNonConverted = nonConvertedByDate ? buildNormalizedMap(nonConvertedByDate) : new Map();
+
+  const emptyDateMap = new Map<string, number>();
+
   // Build agent time series
   const agentTimeSeries: AgentTimeSeries[] = [];
 
   for (const agent of allAgents) {
-    const tripDates = tripsByDate.get(agent) || new Map();
-    const quoteDates = quotesByDate.get(agent) || new Map();
-    const passthroughDates = passthroughsByDate.get(agent) || new Map();
-    const hotPassDates = hotPassByDate.get(agent) || new Map();
-    const bookingDates = bookingsByDate.get(agent) || new Map();
-    const nonConvertedDates = nonConvertedByDate?.get(agent) || new Map();
+    const tripDates = findAgentData(tripsByDate, agent, normalizedTrips, emptyDateMap);
+    const quoteDates = findAgentData(quotesByDate, agent, normalizedQuotes, emptyDateMap);
+    const passthroughDates = findAgentData(passthroughsByDate, agent, normalizedPassthroughs, emptyDateMap);
+    const hotPassDates = findAgentData(hotPassByDate, agent, normalizedHotPass, emptyDateMap);
+    const bookingDates = findAgentData(bookingsByDate, agent, normalizedBookings, emptyDateMap);
+    const nonConvertedDates = nonConvertedByDate
+      ? findAgentData(nonConvertedByDate, agent, normalizedNonConverted, emptyDateMap)
+      : emptyDateMap;
 
     const dailyMetrics: DailyAgentMetrics[] = sortedDates.map(date => ({
       date,
