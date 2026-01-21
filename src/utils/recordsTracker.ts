@@ -524,6 +524,34 @@ export const formatDateRange = (start: string, end: string): string => {
   const startDate = parseDate(start);
   const endDate = parseDate(end);
 
+  // Daily: same start and end
+  if (start === end) {
+    return startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  // Check if it's a full month (1st to last day of same month)
+  const isMonthStart = startDate.getDate() === 1;
+  const isMonthEnd = endDate.getDate() === new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
+  const sameMonth = startDate.getMonth() === endDate.getMonth() && startDate.getFullYear() === endDate.getFullYear();
+
+  if (isMonthStart && isMonthEnd && sameMonth) {
+    return startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+
+  // Check if it's a full quarter
+  const quarterStartMonths = [0, 3, 6, 9]; // Jan, Apr, Jul, Oct
+  const quarterEndMonths = [2, 5, 8, 11]; // Mar, Jun, Sep, Dec
+  const isQuarterStart = isMonthStart && quarterStartMonths.includes(startDate.getMonth());
+  const isQuarterEnd = isMonthEnd && quarterEndMonths.includes(endDate.getMonth());
+  const sameQuarter = Math.floor(startDate.getMonth() / 3) === Math.floor(endDate.getMonth() / 3) &&
+                      startDate.getFullYear() === endDate.getFullYear();
+
+  if (isQuarterStart && isQuarterEnd && sameQuarter) {
+    const quarter = Math.floor(startDate.getMonth() / 3) + 1;
+    return `Q${quarter} ${startDate.getFullYear()}`;
+  }
+
+  // Default: show full range (for weekly or other periods)
   const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
   const startStr = startDate.toLocaleDateString('en-US', options);
   const endStr = endDate.toLocaleDateString('en-US', { ...options, year: 'numeric' });
