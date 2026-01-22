@@ -25,7 +25,7 @@ type SortDirection = 'asc' | 'desc';
 
 type RecommendationType = 'tp' | 'pq';
 
-export const RegionalView: React.FC<RegionalViewProps> = ({ rawData, seniors }) => {
+export const RegionalView: React.FC<RegionalViewProps> = ({ rawData, seniors: _seniors }) => {
   const [regionalTimeframe, setRegionalTimeframe] = useState<RegionalTimeframe>('all');
   const [selectedAgentForRegions, setSelectedAgentForRegions] = useState<string>('');
   const [sortColumn, setSortColumn] = useState<SortColumn>('tpRate');

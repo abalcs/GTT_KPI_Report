@@ -787,7 +787,6 @@ export const generateDepartmentRecommendations = (
   if (performance.allRegions.length === 0) return [];
 
   const deptAvgRate = performance.overallTpRate;
-  const totalTrips = performance.totalTrips;
 
   // Find regions performing below department average
   const belowAverage = performance.allRegions
@@ -817,7 +816,7 @@ export const generateDepartmentRecommendations = (
     .sort((a, b) => b.impactScore - a.impactScore);
 
   // Generate recommendations with priorities based on potential training lift
-  return belowAverage.slice(0, 5).map((r, index) => {
+  return belowAverage.slice(0, 5).map((r, _index) => {
     let priority: 'high' | 'medium' | 'low';
     // Priority based on potential gain and volume
     if (r.potentialGain >= 10 || (r.trips >= 100 && r.potentialGain >= 5)) {
