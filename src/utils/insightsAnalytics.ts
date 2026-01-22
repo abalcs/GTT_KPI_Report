@@ -589,7 +589,7 @@ export const analyzeRegionalPerformance = (
   const { start: startDate, end: endDate } = getTimeframeRange(timeframe);
 
   // Find relevant columns
-  const regionCol = findColumn(trips[0], ['original interest', 'region', 'country', 'destination']);
+  const regionCol = findColumn(trips[0], ['destination', 'region', 'country', 'original interest']);
   const passthroughDateCol = findColumn(trips[0], ['passthrough to sales date', 'passthrough date']);
   const dateCol = findColumn(trips[0], ['created date', 'trip: created date', 'date']);
 
@@ -646,19 +646,47 @@ export const analyzeRegionalPerformance = (
       trips: stats.trips,
       passthroughs: stats.passthroughs,
       tpRate: stats.trips > 0 ? (stats.passthroughs / stats.trips) * 100 : 0,
-    }))
-    .sort((a, b) => b.tpRate - a.tpRate);
+    }));
 
   const totalTrips = allRegions.reduce((sum, r) => sum + r.trips, 0);
   const totalPassthroughs = allRegions.reduce((sum, r) => sum + r.passthroughs, 0);
+  const overallTpRate = totalTrips > 0 ? (totalPassthroughs / totalTrips) * 100 : 0;
+
+  // Sort all regions by rate for general display
+  const sortedByRate = [...allRegions].sort((a, b) => b.tpRate - a.tpRate);
+
+  // Top performing: Weight by volume so we highlight high-volume regions that perform well
+  // Score = rate × log(trips) to balance rate with volume
+  const topPerforming = [...allRegions]
+    .filter(r => r.tpRate >= overallTpRate) // Only above-average regions
+    .sort((a, b) => {
+      const scoreA = a.tpRate * Math.log10(a.trips + 1);
+      const scoreB = b.tpRate * Math.log10(b.trips + 1);
+      return scoreB - scoreA;
+    })
+    .slice(0, 5);
+
+  // Needs improvement: Weight by potential impact (volume × gap from average)
+  // Focus on high-volume regions with below-average rates for maximum training lift
+  const needsImprovement = [...allRegions]
+    .filter(r => r.tpRate < overallTpRate) // Only below-average regions
+    .map(r => ({
+      ...r,
+      // Potential additional passthroughs if matched department average
+      potentialGain: ((overallTpRate / 100) * r.trips) - r.passthroughs,
+      // Impact score: higher volume + larger gap = bigger training opportunity
+      impactScore: r.trips * Math.abs(overallTpRate - r.tpRate),
+    }))
+    .sort((a, b) => b.impactScore - a.impactScore)
+    .slice(0, 5);
 
   return {
-    topRegions: allRegions.slice(0, 5),
-    bottomRegions: allRegions.slice(-5).reverse(),
-    allRegions,
+    topRegions: topPerforming,
+    bottomRegions: needsImprovement,
+    allRegions: sortedByRate,
     totalTrips,
     totalPassthroughs,
-    overallTpRate: totalTrips > 0 ? (totalPassthroughs / totalTrips) * 100 : 0,
+    overallTpRate,
   };
 };
 
@@ -679,10 +707,10 @@ export const generateDepartmentRecommendations = (
       const expectedPassthroughs = (deptAvgRate / 100) * r.trips;
       const potentialGain = Math.max(0, expectedPassthroughs - r.passthroughs);
 
-      // Impact score: combines volume with deviation
-      // Higher volume + larger gap = higher impact
-      const volumeWeight = Math.sqrt(r.trips / Math.max(totalTrips, 1));
-      const impactScore = Math.abs(deviation) * volumeWeight * 100 + potentialGain;
+      // Impact score: prioritizes potential gain (actual training lift)
+      // Primary factor: potential passthroughs gained
+      // Secondary factor: volume × gap (training opportunity size)
+      const impactScore = (potentialGain * 10) + (r.trips * Math.abs(deviation) / 100);
 
       return {
         region: r.region,
@@ -697,32 +725,33 @@ export const generateDepartmentRecommendations = (
     })
     .sort((a, b) => b.impactScore - a.impactScore);
 
-  // Generate recommendations with priorities
+  // Generate recommendations with priorities based on potential training lift
   return belowAverage.slice(0, 5).map((r, index) => {
     let priority: 'high' | 'medium' | 'low';
-    if (index === 0 && r.impactScore > 10) {
+    // Priority based on potential gain and volume
+    if (r.potentialGain >= 10 || (r.trips >= 100 && r.potentialGain >= 5)) {
       priority = 'high';
-    } else if (index < 2 && r.impactScore > 5) {
+    } else if (r.potentialGain >= 5 || r.trips >= 50) {
       priority = 'medium';
     } else {
       priority = 'low';
     }
 
-    // Generate reason
+    // Generate reason focused on training impact
     let reason: string;
     const deviationAbs = Math.abs(r.deviation).toFixed(1);
     const potentialGainRounded = Math.round(r.potentialGain);
 
-    if (r.trips > 100 && Math.abs(r.deviation) > 10) {
-      reason = `High-volume region with ${r.trips} trips and ${deviationAbs}pp gap. Could gain ~${potentialGainRounded} passthroughs.`;
-    } else if (r.trips > 100) {
-      reason = `High-volume region (${r.trips} trips). Even small improvements have significant impact.`;
+    if (r.trips >= 100 && potentialGainRounded >= 10) {
+      reason = `High-impact training opportunity: ${r.trips} trips with ${deviationAbs}pp gap. Training here could yield ~${potentialGainRounded} additional passthroughs.`;
+    } else if (r.trips >= 100) {
+      reason = `High-volume region (${r.trips} trips). Training focus here maximizes reach - could gain ~${potentialGainRounded} passthroughs.`;
+    } else if (potentialGainRounded >= 5) {
+      reason = `Training opportunity: ~${potentialGainRounded} potential passthroughs by closing the ${deviationAbs}pp gap.`;
     } else if (Math.abs(r.deviation) > 15) {
-      reason = `Large performance gap of ${deviationAbs}pp below average. Training opportunity.`;
-    } else if (potentialGainRounded > 5) {
-      reason = `Could gain ~${potentialGainRounded} passthroughs by matching department average.`;
+      reason = `Significant skill gap of ${deviationAbs}pp. Consider targeted training for this destination.`;
     } else {
-      reason = `${deviationAbs}pp below department average with ${r.trips} trips.`;
+      reason = `${r.trips} trips at ${deviationAbs}pp below average. Incremental training gains available.`;
     }
 
     return {
@@ -742,7 +771,7 @@ export const analyzeRegionalPerformanceByAgent = (
   const { start: startDate, end: endDate } = getTimeframeRange(timeframe);
 
   // Find relevant columns
-  const regionCol = findColumn(trips[0], ['original interest', 'region', 'country', 'destination']);
+  const regionCol = findColumn(trips[0], ['destination', 'region', 'country', 'original interest']);
   const passthroughDateCol = findColumn(trips[0], ['passthrough to sales date', 'passthrough date']);
   const dateCol = findColumn(trips[0], ['created date', 'trip: created date', 'date']);
   const keys = Object.keys(trips[0]);
@@ -806,19 +835,39 @@ export const analyzeRegionalPerformanceByAgent = (
           trips: stats.trips,
           passthroughs: stats.passthroughs,
           tpRate: stats.trips > 0 ? (stats.passthroughs / stats.trips) * 100 : 0,
-        }))
-        .sort((a, b) => b.tpRate - a.tpRate);
+        }));
 
       const totalTrips = regionPerf.reduce((sum, r) => sum + r.trips, 0);
       const totalPassthroughs = regionPerf.reduce((sum, r) => sum + r.passthroughs, 0);
+      const overallTpRate = totalTrips > 0 ? (totalPassthroughs / totalTrips) * 100 : 0;
+
+      // Top regions: Weight by volume × rate for high-impact strengths
+      const topRegions = [...regionPerf]
+        .filter(r => r.tpRate >= overallTpRate)
+        .sort((a, b) => {
+          const scoreA = a.tpRate * Math.log10(a.trips + 1);
+          const scoreB = b.tpRate * Math.log10(b.trips + 1);
+          return scoreB - scoreA;
+        })
+        .slice(0, 3);
+
+      // Bottom regions: Weight by potential improvement impact
+      const bottomRegions = [...regionPerf]
+        .filter(r => r.tpRate < overallTpRate && r.trips >= 2)
+        .map(r => ({
+          ...r,
+          impactScore: r.trips * Math.abs(overallTpRate - r.tpRate),
+        }))
+        .sort((a, b) => b.impactScore - a.impactScore)
+        .slice(0, 3);
 
       return {
         agentName,
-        topRegions: regionPerf.slice(0, 3),
-        bottomRegions: regionPerf.filter(r => r.trips >= 2).slice(-3).reverse(),
+        topRegions,
+        bottomRegions,
         totalTrips,
         totalPassthroughs,
-        overallTpRate: totalTrips > 0 ? (totalPassthroughs / totalTrips) * 100 : 0,
+        overallTpRate,
       };
     })
     .filter(a => a.totalTrips >= 5) // Only agents with meaningful data
@@ -841,7 +890,7 @@ export const analyzeAgentRegionalDeviations = (
   }
 
   // Find relevant columns
-  const regionCol = findColumn(trips[0], ['original interest', 'region', 'country', 'destination']);
+  const regionCol = findColumn(trips[0], ['destination', 'region', 'country', 'original interest']);
   const passthroughDateCol = findColumn(trips[0], ['passthrough to sales date', 'passthrough date']);
   const dateCol = findColumn(trips[0], ['created date', 'trip: created date', 'date']);
   const keys = Object.keys(trips[0]);
@@ -1006,7 +1055,7 @@ export const analyzeRegionalTrends = (
   }
 
   // Find relevant columns
-  const regionCol = findColumn(trips[0], ['original interest', 'region', 'country', 'destination']);
+  const regionCol = findColumn(trips[0], ['destination', 'region', 'country', 'original interest']);
   const passthroughDateCol = findColumn(trips[0], ['passthrough to sales date', 'passthrough date']);
   const dateCol = findColumn(trips[0], ['created date', 'trip: created date', 'date']);
 
