@@ -13,6 +13,7 @@ import { mergeSeriesForChart, getAgentColor, getAllDates, isPercentMetric, isCou
 import { loadChartConfig, saveChartConfig } from '../utils/storage';
 import { calculateSeriesRegression, type RegressionResult } from '../utils/regression';
 import { decimateChartData } from '../utils/decimation';
+import { QuartileAnalysisSection } from './QuartileAnalysisSection';
 
 interface TrendsViewProps {
   timeSeriesData: TimeSeriesData;
@@ -1204,6 +1205,14 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
         <span><span className="text-emerald-400">Volume (R):</span> Trips, Quotes, Passthroughs, Bookings</span>
         <span><span className="text-slate-400">Lines:</span> solid=tq/trips, dashed=other metrics</span>
       </div>
+
+      {/* Quartile Analysis Section */}
+      <QuartileAnalysisSection
+        timeSeriesData={timeSeriesData}
+        dateStartIdx={debouncedDateRange.start}
+        dateEndIdx={debouncedDateRange.end}
+        allDates={allDates}
+      />
     </div>
   );
 };

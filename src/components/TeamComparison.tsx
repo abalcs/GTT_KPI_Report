@@ -77,6 +77,7 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
     );
 
     return {
+      id: team.id,
       name: team.name,
       agentCount: team.agentNames.length,
       trips: totals.trips,
@@ -101,11 +102,16 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
   }), [teamData, sortKey, sortDir]);
 
   // PERF: Memoize max values for progress bars
-  const { maxTrips, maxQuotes, maxPassthroughs } = useMemo(() => ({
-    maxTrips: Math.max(...teamData.map(t => t.trips)),
-    maxQuotes: Math.max(...teamData.map(t => t.quotes)),
-    maxPassthroughs: Math.max(...teamData.map(t => t.passthroughs)),
-  }), [teamData]);
+  const { maxTrips, maxQuotes, maxPassthroughs } = useMemo(() => {
+    if (teamData.length === 0) {
+      return { maxTrips: 0, maxQuotes: 0, maxPassthroughs: 0 };
+    }
+    return {
+      maxTrips: Math.max(...teamData.map(t => t.trips)),
+      maxQuotes: Math.max(...teamData.map(t => t.quotes)),
+      maxPassthroughs: Math.max(...teamData.map(t => t.passthroughs)),
+    };
+  }, [teamData]);
 
   if (teams.length < 2 && !hasSeniors) {
     return null;
@@ -280,7 +286,7 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                       </th>
                       {sortedTeams.map((team, idx) => (
                         <th
-                          key={team.name}
+                          key={team.id}
                           className={`px-4 py-3 text-center text-sm font-semibold border-b min-w-[120px] ${
                             idx === 0 && sortKey !== 'name'
                               ? 'bg-amber-50 text-amber-800 border-amber-200'
@@ -310,7 +316,7 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                               : getRelativeColor(value, allValues, row.lowerIsBetter);
                             return (
                               <td
-                                key={team.name}
+                                key={team.id}
                                 className={`px-4 py-3 text-center text-sm border-b ${
                                   colIdx === 0 && sortKey !== 'name'
                                     ? 'bg-amber-50/50 border-amber-100'
@@ -340,7 +346,7 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {sortedTeams.map((team, idx) => (
                   <div
-                    key={team.name}
+                    key={team.id}
                     className={`relative p-5 rounded-xl border-2 ${
                       idx === 0 && sortKey !== 'name'
                         ? 'border-amber-400 bg-amber-50'

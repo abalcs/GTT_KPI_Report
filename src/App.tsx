@@ -12,7 +12,7 @@ import { PresentationGenerator } from './components/PresentationGenerator';
 import { AgentAnalytics } from './components/AgentAnalytics';
 import type { Team, Metrics, FileUploadState, TimeSeriesData } from './types';
 import type { CSVRow } from './utils/csvParser';
-import { loadTeams, saveTeams, loadSeniors, saveSeniors, loadMetrics, saveMetrics, clearMetrics, loadTimeSeriesData, saveTimeSeriesData, clearTimeSeriesData } from './utils/storage';
+import { loadTeams, saveTeams, loadSeniors, saveSeniors, loadNewHires, saveNewHires, loadMetrics, saveMetrics, clearMetrics, loadTimeSeriesData, saveTimeSeriesData, clearTimeSeriesData } from './utils/storage';
 import { loadRawDataFromDB, saveRawDataToDB, clearRawDataFromDB, type RawParsedData } from './utils/indexedDB';
 import { useFileProcessor } from './hooks/useFileProcessor';
 import {
@@ -44,6 +44,7 @@ function App() {
 
   const [teams, setTeams] = useState<Team[]>([]);
   const [seniors, setSeniors] = useState<string[]>([]);
+  const [newHires, setNewHires] = useState<string[]>([]);
   const [metrics, setMetrics] = useState<Metrics[]>([]);
   const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData | null>(null);
   const [rawParsedData, setRawParsedData] = useState<RawParsedData | null>(null);
@@ -66,6 +67,7 @@ function App() {
   useEffect(() => {
     setTeams(loadTeams());
     setSeniors(loadSeniors());
+    setNewHires(loadNewHires());
     setMetrics(loadMetrics());
     setTimeSeriesData(loadTimeSeriesData());
 
@@ -90,6 +92,11 @@ function App() {
   const handleSeniorsChange = useCallback((newSeniors: string[]) => {
     setSeniors(newSeniors);
     saveSeniors(newSeniors);
+  }, []);
+
+  const handleNewHiresChange = useCallback((updatedNewHires: string[]) => {
+    setNewHires(updatedNewHires);
+    saveNewHires(updatedNewHires);
   }, []);
 
   const handleFileSelect = useCallback(
@@ -585,6 +592,8 @@ function App() {
                   onTeamsChange={handleTeamsChange}
                   seniors={seniors}
                   onSeniorsChange={handleSeniorsChange}
+                  newHires={newHires}
+                  onNewHiresChange={handleNewHiresChange}
                   availableAgents={allAgentNames}
                 />
               </div>
@@ -597,7 +606,7 @@ function App() {
           <div className="space-y-4">
             <AgentAnalytics metrics={metrics} seniors={seniors} />
             <TeamComparison metrics={metrics} teams={teams} seniors={seniors} />
-            <ResultsTable metrics={metrics} teams={teams} seniors={seniors} />
+            <ResultsTable metrics={metrics} teams={teams} seniors={seniors} newHires={newHires} />
           </div>
         )}
 

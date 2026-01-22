@@ -5,9 +5,10 @@ interface ResultsTableProps {
   metrics: Metrics[];
   teams: Team[];
   seniors: string[];
+  newHires: string[];
 }
 
-type SeniorFilter = 'all' | 'seniors' | 'non-seniors';
+type SeniorFilter = 'all' | 'seniors' | 'non-seniors' | 'new-hires';
 
 type SortColumn = 'trips' | 'quotes' | 'passthroughs' | 'quotesFromTrips' | 'passthroughsFromTrips' | 'quotesFromPassthroughs' | 'hotPassRate' | 'bookings' | 'nonConvertedRate' | null;
 type SortDirection = 'asc' | 'desc';
@@ -17,7 +18,7 @@ const formatPercent = (value: number): string => {
   return `${value.toFixed(1)}%`;
 };
 
-export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seniors }) => {
+export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seniors, newHires }) => {
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [selectedTeam, setSelectedTeam] = useState<string>('all');
@@ -29,6 +30,10 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
 
   const isSenior = (agentName: string): boolean => {
     return seniors.includes(agentName);
+  };
+
+  const isNewHire = (agentName: string): boolean => {
+    return newHires.includes(agentName);
   };
 
   // Filter metrics by selected team and senior status
@@ -43,15 +48,17 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
       }
     }
 
-    // Filter by senior status
+    // Filter by senior/new hire status
     if (seniorFilter === 'seniors') {
       filtered = filtered.filter(m => seniors.includes(m.agentName));
     } else if (seniorFilter === 'non-seniors') {
       filtered = filtered.filter(m => !seniors.includes(m.agentName));
+    } else if (seniorFilter === 'new-hires') {
+      filtered = filtered.filter(m => newHires.includes(m.agentName));
     }
 
     return filtered;
-  }, [metrics, teams, selectedTeam, seniors, seniorFilter]);
+  }, [metrics, teams, selectedTeam, seniors, newHires, seniorFilter]);
 
   // Sort metrics
   const sortedMetrics = useMemo(() => {
@@ -74,7 +81,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
     }
   };
 
-  // PERF: Memoize totals calculation - O(n) but avoids recalculation on unrelated re-renders
+  // Calculate totals for the filtered/sorted metrics
   const totals = useMemo(() => sortedMetrics.reduce(
     (acc, m) => ({
       trips: acc.trips + m.trips,
@@ -88,7 +95,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
     { trips: 0, quotes: 0, passthroughs: 0, hotPasses: 0, bookings: 0, nonConvertedLeads: 0, totalLeads: 0 }
   ), [sortedMetrics]);
 
-  // PERF: Memoize derived totals - avoids recalculation
   const totalMetrics = useMemo(() => ({
     quotesFromTrips: totals.trips > 0 ? (totals.quotes / totals.trips) * 100 : 0,
     passthroughsFromTrips: totals.trips > 0 ? (totals.passthroughs / totals.trips) * 100 : 0,
@@ -97,37 +103,29 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
     nonConvertedRate: totals.totalLeads > 0 ? (totals.nonConvertedLeads / totals.totalLeads) * 100 : 0,
   }), [totals]);
 
-  // PERF: Memoize team aggregates - O(t*a) calculation, avoid on unrelated re-renders
-  const teamAggregates = useMemo(() => teams.map((team) => {
-    const teamMetrics = metrics.filter((m) => team.agentNames.includes(m.agentName));
-    const teamTotals = teamMetrics.reduce(
-      (acc, m) => ({
-        trips: acc.trips + m.trips,
-        quotes: acc.quotes + m.quotes,
-        passthroughs: acc.passthroughs + m.passthroughs,
-        hotPasses: acc.hotPasses + m.hotPasses,
-        bookings: acc.bookings + m.bookings,
-        nonConvertedLeads: acc.nonConvertedLeads + m.nonConvertedLeads,
-        totalLeads: acc.totalLeads + m.totalLeads,
-      }),
-      { trips: 0, quotes: 0, passthroughs: 0, hotPasses: 0, bookings: 0, nonConvertedLeads: 0, totalLeads: 0 }
-    );
+  // Determine the label for the totals row based on active filters
+  const getTotalsLabel = () => {
+    const parts: string[] = [];
 
-    return {
-      teamName: team.name,
-      teamId: team.id,
-      trips: teamTotals.trips,
-      quotes: teamTotals.quotes,
-      passthroughs: teamTotals.passthroughs,
-      hotPasses: teamTotals.hotPasses,
-      bookings: teamTotals.bookings,
-      quotesFromTrips: teamTotals.trips > 0 ? (teamTotals.quotes / teamTotals.trips) * 100 : 0,
-      passthroughsFromTrips: teamTotals.trips > 0 ? (teamTotals.passthroughs / teamTotals.trips) * 100 : 0,
-      quotesFromPassthroughs: teamTotals.passthroughs > 0 ? (teamTotals.quotes / teamTotals.passthroughs) * 100 : 0,
-      hotPassRate: teamTotals.passthroughs > 0 ? (teamTotals.hotPasses / teamTotals.passthroughs) * 100 : 0,
-      nonConvertedRate: teamTotals.totalLeads > 0 ? (teamTotals.nonConvertedLeads / teamTotals.totalLeads) * 100 : 0,
-    };
-  }), [teams, metrics]);
+    if (selectedTeam !== 'all') {
+      const team = teams.find(t => t.id === selectedTeam);
+      if (team) parts.push(team.name);
+    }
+
+    if (seniorFilter === 'seniors') {
+      parts.push('Seniors');
+    } else if (seniorFilter === 'non-seniors') {
+      parts.push('Non-Seniors');
+    } else if (seniorFilter === 'new-hires') {
+      parts.push('New Hires');
+    }
+
+    if (parts.length === 0) {
+      return 'Department Total';
+    }
+
+    return parts.join(' ') + ' Total';
+  };
 
   const SortIcon = ({ column }: { column: SortColumn }) => {
     if (sortColumn !== column) {
@@ -168,17 +166,24 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
         <h2 className="text-xl font-bold text-white">KPI Results</h2>
 
         <div className="flex items-center gap-4">
-          {seniors.length > 0 && (
+          {(seniors.length > 0 || newHires.length > 0) && (
             <div className="flex items-center gap-2">
-              <label className="text-white text-sm">Seniority:</label>
+              <label className="text-white text-sm">Filter:</label>
               <select
                 value={seniorFilter}
                 onChange={(e) => setSeniorFilter(e.target.value as SeniorFilter)}
                 className="px-3 py-1.5 rounded-lg text-sm bg-white/20 text-white border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
               >
                 <option value="all" className="text-gray-800">All Agents</option>
-                <option value="seniors" className="text-gray-800">Seniors Only</option>
-                <option value="non-seniors" className="text-gray-800">Non-Seniors Only</option>
+                {seniors.length > 0 && (
+                  <option value="seniors" className="text-gray-800">Seniors Only</option>
+                )}
+                {seniors.length > 0 && (
+                  <option value="non-seniors" className="text-gray-800">Non-Seniors Only</option>
+                )}
+                {newHires.length > 0 && (
+                  <option value="new-hires" className="text-gray-800">New Hires Only</option>
+                )}
               </select>
             </div>
           )}
@@ -312,6 +317,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
                           Sr
                         </span>
                       )}
+                      {isNewHire(m.agentName) && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-800">
+                          New
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -354,54 +364,10 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
               );
             })}
 
-            {selectedTeam === 'all' && teamAggregates.length > 0 && (
-              <>
-                <tr className="bg-indigo-50">
-                  <td colSpan={11} className="px-6 py-2 text-xs font-semibold text-indigo-600 uppercase">
-                    Team Totals
-                  </td>
-                </tr>
-                {teamAggregates.map((ta) => (
-                  <tr key={ta.teamName} className="bg-indigo-50/50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-indigo-900">
-                      {ta.teamName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">—</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-700 text-center font-medium">
-                      {ta.trips}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-700 text-center font-medium">
-                      {ta.quotes}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-700 text-center font-medium">
-                      {ta.passthroughs}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-blue-700 text-center">
-                      {formatPercent(ta.quotesFromTrips)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-700 text-center">
-                      {formatPercent(ta.passthroughsFromTrips)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-purple-700 text-center">
-                      {formatPercent(ta.quotesFromPassthroughs)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-orange-700 text-center">
-                      {formatPercent(ta.hotPassRate)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-cyan-700 text-center">
-                      {ta.bookings}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-rose-700 text-center">
-                      {formatPercent(ta.nonConvertedRate)}
-                    </td>
-                  </tr>
-                ))}
-              </>
-            )}
-
+            {/* Totals Row */}
             <tr className="bg-gradient-to-r from-gray-800 to-gray-900">
               <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
-                {selectedTeam === 'all' ? 'Department Total' : 'Team Total'}
+                {getTotalsLabel()}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">—</td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-white text-center font-bold">

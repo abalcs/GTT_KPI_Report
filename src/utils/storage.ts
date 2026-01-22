@@ -2,6 +2,7 @@ import type { Team, Metrics, TimeSeriesData, ChartConfig, AgentAnalysis } from '
 
 const TEAMS_STORAGE_KEY = 'kpi-report-teams';
 const SENIORS_STORAGE_KEY = 'kpi-report-seniors';
+const NEW_HIRES_STORAGE_KEY = 'kpi-report-new-hires';
 const METRICS_STORAGE_KEY = 'kpi-report-metrics';
 const TIMESERIES_STORAGE_KEY = 'kpi-report-timeseries';
 const CHART_CONFIG_STORAGE_KEY = 'kpi-report-chart-config';
@@ -45,6 +46,26 @@ export const saveSeniors = (seniors: string[]): void => {
     localStorage.setItem(SENIORS_STORAGE_KEY, JSON.stringify(seniors));
   } catch (error) {
     console.error('Failed to save seniors to storage:', error);
+  }
+};
+
+export const loadNewHires = (): string[] => {
+  try {
+    const stored = localStorage.getItem(NEW_HIRES_STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('Failed to load new hires from storage:', error);
+  }
+  return [];
+};
+
+export const saveNewHires = (newHires: string[]): void => {
+  try {
+    localStorage.setItem(NEW_HIRES_STORAGE_KEY, JSON.stringify(newHires));
+  } catch (error) {
+    console.error('Failed to save new hires to storage:', error);
   }
 };
 

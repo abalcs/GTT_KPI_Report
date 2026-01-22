@@ -119,3 +119,27 @@ export interface DepartmentAverages {
   avgHotPassRate: number;
   avgNonConvertedRate: number;
 }
+
+// Quartile analysis types for hot pass comparison
+export interface QuartileAgent {
+  agentName: string;
+  aggregateHotPassRate: number;
+  totalPassthroughs: number;
+  totalHotPasses: number;
+  totalBookings: number;
+}
+
+export interface QuartileDailyPoint {
+  date: string;
+  topQuartileAvgTQ: number;
+  bottomQuartileAvgTQ: number;
+  topQuartileAgentCount: number;
+  bottomQuartileAgentCount: number;
+}
+
+export interface QuartileAnalysisData {
+  topQuartileAgents: QuartileAgent[];
+  bottomQuartileAgents: QuartileAgent[];
+  dailyComparison: QuartileDailyPoint[];
+  dateRange: { start: string; end: string };
+}

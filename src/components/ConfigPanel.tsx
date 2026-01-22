@@ -6,6 +6,8 @@ interface ConfigPanelProps {
   onTeamsChange: (teams: Team[]) => void;
   seniors: string[];
   onSeniorsChange: (seniors: string[]) => void;
+  newHires: string[];
+  onNewHiresChange: (newHires: string[]) => void;
   availableAgents: string[];
 }
 
@@ -14,10 +16,12 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   onTeamsChange,
   seniors,
   onSeniorsChange,
+  newHires,
+  onNewHiresChange,
   availableAgents,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'teams' | 'seniors'>('teams');
+  const [activeTab, setActiveTab] = useState<'teams' | 'seniors' | 'newHires'>('teams');
   const [newTeamName, setNewTeamName] = useState('');
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
 
@@ -25,6 +29,8 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const unassignedAgents = availableAgents.filter((a) => !assignedAgents.includes(a));
   const seniorAgents = availableAgents.filter(a => seniors.includes(a));
   const nonSeniorAgents = availableAgents.filter(a => !seniors.includes(a));
+  const newHireAgents = availableAgents.filter(a => newHires.includes(a));
+  const nonNewHireAgents = availableAgents.filter(a => !newHires.includes(a));
 
   const handleCreateTeam = () => {
     if (!newTeamName.trim()) return;
@@ -70,6 +76,14 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
     }
   };
 
+  const toggleNewHire = (agentName: string) => {
+    if (newHires.includes(agentName)) {
+      onNewHiresChange(newHires.filter(n => n !== agentName));
+    } else {
+      onNewHiresChange([...newHires, agentName]);
+    }
+  };
+
   if (availableAgents.length === 0) {
     return null;
   }
@@ -92,6 +106,9 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             </span>
             <span className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-xs">
               {seniors.length} seniors
+            </span>
+            <span className="bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded text-xs">
+              {newHires.length} new hires
             </span>
           </div>
         </div>
@@ -127,7 +144,17 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   : 'text-slate-400 hover:text-white hover:bg-slate-700/30'
               }`}
             >
-              Senior Designation
+              Seniors
+            </button>
+            <button
+              onClick={() => setActiveTab('newHires')}
+              className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'newHires'
+                  ? 'text-sky-400 border-b-2 border-sky-400 bg-sky-500/10'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700/30'
+              }`}
+            >
+              New Hires
             </button>
           </div>
 
@@ -291,6 +318,54 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                         key={agent}
                         onClick={() => toggleSenior(agent)}
                         className="px-2 py-1 bg-slate-700/50 text-slate-300 rounded text-xs hover:bg-amber-500/20 hover:text-amber-400 transition-colors"
+                      >
+                        {agent}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* New Hires Tab */}
+            {activeTab === 'newHires' && (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-400">
+                  Click agents to toggle new hire designation. New hires can be filtered separately in results.
+                </p>
+
+                {newHireAgents.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-medium text-sky-400 mb-2 flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                      </svg>
+                      New Hires ({newHireAgents.length})
+                    </h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {newHireAgents.map(agent => (
+                        <button
+                          key={agent}
+                          onClick={() => toggleNewHire(agent)}
+                          className="px-2 py-1 bg-sky-500/20 text-sky-400 rounded text-xs hover:bg-sky-500/30 transition-colors"
+                        >
+                          {agent} ×
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <h4 className="text-xs font-medium text-slate-400 mb-2">
+                    Other Agents ({nonNewHireAgents.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                    {nonNewHireAgents.map(agent => (
+                      <button
+                        key={agent}
+                        onClick={() => toggleNewHire(agent)}
+                        className="px-2 py-1 bg-slate-700/50 text-slate-300 rounded text-xs hover:bg-sky-500/20 hover:text-sky-400 transition-colors"
                       >
                         {agent}
                       </button>
