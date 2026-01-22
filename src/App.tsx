@@ -5,6 +5,7 @@ import { ConfigPanel } from './components/ConfigPanel';
 import { TeamComparison } from './components/TeamComparison';
 import { DateRangeFilter } from './components/DateRangeFilter';
 import { TrendsView } from './components/TrendsView';
+import { RegionalView } from './components/RegionalView';
 import { InsightsView } from './components/InsightsView';
 import { RecordsView } from './components/RecordsView';
 import { RecordNotification } from './components/RecordNotification';
@@ -48,9 +49,9 @@ function App() {
   const [metrics, setMetrics] = useState<Metrics[]>([]);
   const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData | null>(null);
   const [rawParsedData, setRawParsedData] = useState<RawParsedData | null>(null);
-  const [activeView, setActiveView] = useState<'summary' | 'trends' | 'insights' | 'records'>(() => {
+  const [activeView, setActiveView] = useState<'summary' | 'regional' | 'trends' | 'insights' | 'records'>(() => {
     const saved = localStorage.getItem('gtt-active-view');
-    if (saved === 'summary' || saved === 'trends' || saved === 'insights' || saved === 'records') {
+    if (saved === 'summary' || saved === 'regional' || saved === 'trends' || saved === 'insights' || saved === 'records') {
       return saved;
     }
     return 'summary';
@@ -596,6 +597,17 @@ function App() {
                 Summary
               </button>
               <button
+                onClick={() => setActiveView('regional')}
+                disabled={!rawParsedData}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  activeView === 'regional'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed'
+                }`}
+              >
+                Regional
+              </button>
+              <button
                 onClick={() => setActiveView('trends')}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   activeView === 'trends'
@@ -651,6 +663,11 @@ function App() {
             <TeamComparison metrics={metrics} teams={teams} seniors={seniors} />
             <ResultsTable metrics={metrics} teams={teams} seniors={seniors} newHires={newHires} />
           </div>
+        )}
+
+        {/* Regional View */}
+        {activeView === 'regional' && rawParsedData && (
+          <RegionalView rawData={rawParsedData} seniors={seniors} />
         )}
 
         {/* Trends View */}
