@@ -50,6 +50,7 @@ export const RegionalView: React.FC<RegionalViewProps> = ({ rawData, seniors: _s
   } | null>(null);
   const [isGeneratingTraining, setIsGeneratingTraining] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState<string>('');
+  const [customTrainingFocus, setCustomTrainingFocus] = useState<string>('');
 
   // Regional performance analysis
   const filteredRegionalPerformance = useMemo((): DepartmentRegionalPerformance | null => {
@@ -159,10 +160,12 @@ export const RegionalView: React.FC<RegionalViewProps> = ({ rawData, seniors: _s
         trainingDestination.tpRate,
         trainingDestination.departmentAvgRate,
         apiKey,
-        (stage) => setTrainingProgress(stage)
+        (stage) => setTrainingProgress(stage),
+        customTrainingFocus.trim() || undefined
       );
       setShowTrainingConfirm(false);
       setTrainingDestination(null);
+      setCustomTrainingFocus('');
     } catch (err) {
       console.error('Failed to generate training:', err);
       alert('Failed to generate training deck. Please check the console for details.');
@@ -835,6 +838,7 @@ export const RegionalView: React.FC<RegionalViewProps> = ({ rawData, seniors: _s
                 onClick={() => {
                   setShowTrainingConfirm(false);
                   setTrainingDestination(null);
+                  setCustomTrainingFocus('');
                 }}
                 disabled={isGeneratingTraining}
                 className="p-2 hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
@@ -886,11 +890,26 @@ export const RegionalView: React.FC<RegionalViewProps> = ({ rawData, seniors: _s
                     </ul>
                   </div>
 
+                  {/* Custom focus input */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Any specific focus for this training? <span className="text-slate-500 font-normal">(optional)</span>
+                    </label>
+                    <textarea
+                      value={customTrainingFocus}
+                      onChange={(e) => setCustomTrainingFocus(e.target.value)}
+                      placeholder="e.g., Focus on honeymoon couples, emphasize safari lodges, address concerns about safety, highlight shoulder season deals..."
+                      className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 resize-none focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      rows={3}
+                    />
+                  </div>
+
                   <div className="flex gap-3">
                     <button
                       onClick={() => {
                         setShowTrainingConfirm(false);
                         setTrainingDestination(null);
+                        setCustomTrainingFocus('');
                       }}
                       className="flex-1 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-white transition-colors"
                     >

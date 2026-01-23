@@ -39,14 +39,19 @@ export interface TrainingContent {
 const buildTrainingPrompt = (
   destination: string,
   currentTpRate: number,
-  departmentAvgRate: number
+  departmentAvgRate: number,
+  customFocus?: string
 ): string => {
+  const customFocusSection = customFocus
+    ? `\n\nSPECIAL FOCUS REQUESTED BY TRAINER:\n${customFocus}\n\nPlease incorporate this focus throughout the training content where relevant - in the selling points, hotel selections, experience recommendations, sales tips, and quiz questions.`
+    : '';
+
   return `You are a travel industry expert helping create product training for Global Travel Agents selling luxury tailor-made trips to ${destination}.
 
 CONTEXT:
 - The agents' current Trip-to-Passthrough (T>P) conversion rate for ${destination} is ${currentTpRate.toFixed(1)}%
 - The department average is ${departmentAvgRate.toFixed(1)}%
-- Goal: Help agents convert more trip inquiries into passthroughs (qualified leads) by improving their destination knowledge
+- Goal: Help agents convert more trip inquiries into passthroughs (qualified leads) by improving their destination knowledge${customFocusSection}
 
 Please generate comprehensive training content for a 45-minute product training session. Return ONLY valid JSON matching this exact structure:
 
@@ -146,14 +151,15 @@ export const generateTrainingContent = async (
   destination: string,
   currentTpRate: number,
   departmentAvgRate: number,
-  apiKey: string
+  apiKey: string,
+  customFocus?: string
 ): Promise<TrainingContent> => {
   const anthropic = new Anthropic({
     apiKey,
     dangerouslyAllowBrowser: true,
   });
 
-  const prompt = buildTrainingPrompt(destination, currentTpRate, departmentAvgRate);
+  const prompt = buildTrainingPrompt(destination, currentTpRate, departmentAvgRate, customFocus);
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
@@ -680,11 +686,12 @@ export const generateDestinationTraining = async (
   currentTpRate: number,
   departmentAvgRate: number,
   apiKey: string,
-  onProgress?: (stage: string) => void
+  onProgress?: (stage: string) => void,
+  customFocus?: string
 ): Promise<void> => {
   // Stage 1: Generate content with Claude
   onProgress?.('Generating training content with AI...');
-  const content = await generateTrainingContent(destination, currentTpRate, departmentAvgRate, apiKey);
+  const content = await generateTrainingContent(destination, currentTpRate, departmentAvgRate, apiKey, customFocus);
 
   // Stage 2: Generate PowerPoint
   onProgress?.('Creating PowerPoint presentation...');
