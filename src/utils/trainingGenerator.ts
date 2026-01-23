@@ -10,6 +10,7 @@ export interface TrainingContent {
     uniqueSellingPoints: string[];
     bestTimeToVisit: string;
     idealTripLength: string;
+    keyFacts: string[];
   };
   hotels: {
     luxury: Array<{ name: string; highlights: string; location: string }>;
@@ -21,11 +22,11 @@ export interface TrainingContent {
     hiddenGems: Array<{ name: string; description: string; duration: string }>;
     cultural: Array<{ name: string; description: string; duration: string }>;
   };
-  salesTips: {
-    targetClients: string[];
-    commonObjections: Array<{ objection: string; response: string }>;
-    closingTechniques: string[];
+  advisorTips: {
+    idealClients: string[];
+    commonConcerns: Array<{ concern: string; response: string }>;
     conversationStarters: string[];
+    proTips: string[];
   };
   quizQuestions: Array<{
     question: string;
@@ -43,106 +44,107 @@ const buildTrainingPrompt = (
   customFocus?: string
 ): string => {
   const customFocusSection = customFocus
-    ? `\n\nSPECIAL FOCUS REQUESTED BY TRAINER:\n${customFocus}\n\nPlease incorporate this focus throughout the training content where relevant - in the selling points, hotel selections, experience recommendations, sales tips, and quiz questions.`
+    ? `\n\nSPECIAL FOCUS REQUESTED BY TRAINER:\n${customFocus}\n\nPlease incorporate this focus throughout the training content where relevant - in the selling points, hotel selections, experience recommendations, advisor tips, and quiz questions.`
     : '';
 
-  return `You are a travel industry expert helping create product training for Global Travel Agents selling luxury tailor-made trips to ${destination}.
+  return `You are a travel industry expert helping create product training for Global Travel Advisors (GTAs) at a luxury tailor-made travel company. GTAs are business development professionals who help match clients with the perfect trip experiences.
 
 CONTEXT:
-- The agents' current Trip-to-Passthrough (T>P) conversion rate for ${destination} is ${currentTpRate.toFixed(1)}%
+- The GTAs' current Trip-to-Passthrough (T>P) conversion rate for ${destination} is ${currentTpRate.toFixed(1)}%
 - The department average is ${departmentAvgRate.toFixed(1)}%
-- Goal: Help agents convert more trip inquiries into passthroughs (qualified leads) by improving their destination knowledge${customFocusSection}
+- Goal: Help GTAs improve their destination expertise to better serve clients and increase successful trip matches${customFocusSection}
 
 Please generate comprehensive training content for a 45-minute product training session. Return ONLY valid JSON matching this exact structure:
 
 {
   "destination": "${destination}",
   "overview": {
-    "introduction": "A compelling 2-3 sentence introduction about ${destination} that agents can use to hook clients",
-    "uniqueSellingPoints": ["5-7 unique selling points that differentiate ${destination} from competitors"],
+    "introduction": "A compelling 2-3 sentence introduction about ${destination} that captures its essence and appeal",
+    "uniqueSellingPoints": ["5-7 unique selling points that make ${destination} special"],
     "bestTimeToVisit": "Best seasons/months to visit and why",
-    "idealTripLength": "Recommended trip duration with reasoning"
+    "idealTripLength": "Recommended trip duration with reasoning",
+    "keyFacts": ["4-5 interesting facts about ${destination} that advisors should know"]
   },
   "hotels": {
     "luxury": [
-      {"name": "Hotel Name", "highlights": "Key features and why clients love it", "location": "Area/region"},
-      {"name": "Hotel Name", "highlights": "Key features and why clients love it", "location": "Area/region"},
-      {"name": "Hotel Name", "highlights": "Key features and why clients love it", "location": "Area/region"}
+      {"name": "Hotel Name", "highlights": "Key features and what makes it exceptional", "location": "Area/region"},
+      {"name": "Hotel Name", "highlights": "Key features and what makes it exceptional", "location": "Area/region"},
+      {"name": "Hotel Name", "highlights": "Key features and what makes it exceptional", "location": "Area/region"}
     ],
     "midRange": [
-      {"name": "Hotel Name", "highlights": "Key features and why clients love it", "location": "Area/region"},
-      {"name": "Hotel Name", "highlights": "Key features and why clients love it", "location": "Area/region"}
+      {"name": "Hotel Name", "highlights": "Key features and value proposition", "location": "Area/region"},
+      {"name": "Hotel Name", "highlights": "Key features and value proposition", "location": "Area/region"}
     ],
     "boutique": [
-      {"name": "Hotel Name", "highlights": "Key features and unique character", "location": "Area/region"},
-      {"name": "Hotel Name", "highlights": "Key features and unique character", "location": "Area/region"}
+      {"name": "Hotel Name", "highlights": "Unique character and experience", "location": "Area/region"},
+      {"name": "Hotel Name", "highlights": "Unique character and experience", "location": "Area/region"}
     ]
   },
   "excursions": {
     "mustDo": [
-      {"name": "Experience Name", "description": "What makes this special", "duration": "Half day/Full day/etc"},
-      {"name": "Experience Name", "description": "What makes this special", "duration": "Half day/Full day/etc"},
-      {"name": "Experience Name", "description": "What makes this special", "duration": "Half day/Full day/etc"}
+      {"name": "Experience Name", "description": "What makes this unmissable", "duration": "Half day/Full day/etc"},
+      {"name": "Experience Name", "description": "What makes this unmissable", "duration": "Half day/Full day/etc"},
+      {"name": "Experience Name", "description": "What makes this unmissable", "duration": "Half day/Full day/etc"}
     ],
     "hiddenGems": [
       {"name": "Experience Name", "description": "Why this is special and underrated", "duration": "Duration"},
       {"name": "Experience Name", "description": "Why this is special and underrated", "duration": "Duration"}
     ],
     "cultural": [
-      {"name": "Experience Name", "description": "Cultural significance and experience", "duration": "Duration"},
-      {"name": "Experience Name", "description": "Cultural significance and experience", "duration": "Duration"}
+      {"name": "Experience Name", "description": "Cultural significance and what to expect", "duration": "Duration"},
+      {"name": "Experience Name", "description": "Cultural significance and what to expect", "duration": "Duration"}
     ]
   },
-  "salesTips": {
-    "targetClients": ["5-6 client profiles that are ideal for ${destination}"],
-    "commonObjections": [
-      {"objection": "Common concern clients raise", "response": "Effective response to address it"},
-      {"objection": "Common concern clients raise", "response": "Effective response to address it"},
-      {"objection": "Common concern clients raise", "response": "Effective response to address it"},
-      {"objection": "Common concern clients raise", "response": "Effective response to address it"}
+  "advisorTips": {
+    "idealClients": ["5-6 client profiles that are perfect for ${destination}"],
+    "commonConcerns": [
+      {"concern": "Common question or concern clients have", "response": "Helpful, informative response"},
+      {"concern": "Common question or concern clients have", "response": "Helpful, informative response"},
+      {"concern": "Common question or concern clients have", "response": "Helpful, informative response"},
+      {"concern": "Common question or concern clients have", "response": "Helpful, informative response"}
     ],
-    "closingTechniques": ["4-5 specific closing techniques that work well for ${destination}"],
-    "conversationStarters": ["5-6 engaging questions to start conversations about ${destination}"]
+    "conversationStarters": ["5-6 engaging questions to discover if ${destination} is right for a client"],
+    "proTips": ["4-5 insider tips that experienced advisors know about ${destination}"]
   },
   "quizQuestions": [
     {
       "question": "Question about ${destination}?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": 0,
-      "explanation": "Why this is correct and what agents should remember"
+      "explanation": "Why this is correct and the key learning point"
     },
     {
       "question": "Question about ${destination}?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": 1,
-      "explanation": "Why this is correct and what agents should remember"
+      "explanation": "Why this is correct and the key learning point"
     },
     {
       "question": "Question about ${destination}?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": 2,
-      "explanation": "Why this is correct and what agents should remember"
+      "explanation": "Why this is correct and the key learning point"
     },
     {
       "question": "Question about ${destination}?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": 0,
-      "explanation": "Why this is correct and what agents should remember"
+      "explanation": "Why this is correct and the key learning point"
     },
     {
       "question": "Question about ${destination}?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": 1,
-      "explanation": "Why this is correct and what agents should remember"
+      "explanation": "Why this is correct and the key learning point"
     }
   ]
 }
 
 IMPORTANT:
-- Focus on actionable knowledge that helps convert inquiries to qualified leads
-- Include specific hotel and experience names that agents should know
-- Make objection responses consultative, not pushy
-- Quiz questions should reinforce key selling points
+- Focus on building destination expertise that helps advisors match clients with the right experiences
+- Include specific hotel and experience names that advisors should know
+- Make responses to concerns informative and helpful, not pushy
+- Quiz questions should reinforce key destination knowledge
 - Return ONLY the JSON, no markdown formatting or explanation`;
 };
 
@@ -174,7 +176,6 @@ export const generateTrainingContent = async (
 
   // Parse the JSON response
   try {
-    // Clean up the response - remove any markdown code blocks if present
     let jsonText = content.text.trim();
     if (jsonText.startsWith('```json')) {
       jsonText = jsonText.slice(7);
@@ -193,17 +194,30 @@ export const generateTrainingContent = async (
   }
 };
 
-// Color palette for slides
+// Get Unsplash image URL for a destination
+const getDestinationImageUrl = (destination: string, query?: string): string => {
+  const searchQuery = query || destination;
+  // Using Unsplash Source for direct image URLs (no API key needed)
+  return `https://source.unsplash.com/1600x900/?${encodeURIComponent(searchQuery)},travel,landscape`;
+};
+
+// Color palette for slides - modernized
 const COLORS = {
-  primary: '4F46E5',      // Indigo
-  secondary: '7C3AED',    // Purple
-  success: '10B981',      // Emerald
-  warning: 'F59E0B',      // Amber
-  danger: 'EF4444',       // Red
+  primary: '6366F1',      // Indigo 500
+  primaryDark: '4F46E5',  // Indigo 600
+  secondary: '8B5CF6',    // Violet 500
+  accent: '06B6D4',       // Cyan 500
+  success: '10B981',      // Emerald 500
+  warning: 'F59E0B',      // Amber 500
+  danger: 'EF4444',       // Red 500
   dark: '0F172A',         // Slate 900
   darkAlt: '1E293B',      // Slate 800
+  darkCard: '334155',     // Slate 700
   light: '94A3B8',        // Slate 400
+  lighter: 'CBD5E1',      // Slate 300
   white: 'FFFFFF',
+  gradient1: '4F46E5',    // Indigo
+  gradient2: '7C3AED',    // Purple
 };
 
 // Generate PowerPoint training deck from content
@@ -212,461 +226,623 @@ export const generateTrainingDeck = async (content: TrainingContent): Promise<vo
 
   // Set presentation properties
   pptx.author = 'GTT KPI Report';
-  pptx.title = `${content.destination} Product Training`;
-  pptx.subject = 'Destination Product Training for Global Travel Agents';
+  pptx.title = `${content.destination} - Global Travel Advisor Training`;
+  pptx.subject = 'Destination Training for Global Travel Advisors';
   pptx.layout = 'LAYOUT_16x9';
 
-  // Helper function for slide headers
-  const addSlideHeader = (slide: pptxgen.Slide, title: string, subtitle?: string) => {
-    slide.addShape('rect', { x: 0, y: 0, w: '100%', h: 0.08, fill: { color: COLORS.primary } });
-    slide.addText(title, {
-      x: 0.5, y: 0.3, w: 9, h: 0.6,
-      fontSize: 28, bold: true, color: COLORS.white, fontFace: 'Arial',
+  // Helper function for modern slide headers with gradient accent
+  const addSlideHeader = (slide: pptxgen.Slide, title: string, subtitle?: string, icon?: string) => {
+    // Gradient accent bar
+    slide.addShape('rect', { x: 0, y: 0, w: '100%', h: 0.12, fill: { color: COLORS.primary } });
+
+    // Title with optional icon
+    const titleText = icon ? `${icon}  ${title}` : title;
+    slide.addText(titleText, {
+      x: 0.5, y: 0.35, w: 9, h: 0.65,
+      fontSize: 32, bold: true, color: COLORS.white, fontFace: 'Arial',
     });
+
     if (subtitle) {
       slide.addText(subtitle, {
-        x: 0.5, y: 0.85, w: 9, h: 0.35,
+        x: 0.5, y: 0.95, w: 9, h: 0.35,
         fontSize: 14, color: COLORS.light, fontFace: 'Arial',
       });
     }
+
+    // Subtle separator line
+    slide.addShape('rect', { x: 0.5, y: 1.35, w: 2, h: 0.02, fill: { color: COLORS.primary } });
   };
 
-  // ===== SLIDE 1: TITLE =====
+  // Helper for gradient background cards
+  const addGradientCard = (
+    slide: pptxgen.Slide,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    color: string
+  ) => {
+    slide.addShape('rect', {
+      x, y, w, h,
+      fill: { color: COLORS.darkAlt },
+      line: { color, width: 2 },
+      shadow: { type: 'outer', blur: 8, offset: 2, angle: 45, opacity: 0.3, color: '000000' },
+    });
+  };
+
+  // ===== SLIDE 1: TITLE WITH DESTINATION IMAGE =====
   const slide1 = pptx.addSlide();
   slide1.background = { color: COLORS.dark };
+
+  // Try to add destination image as background overlay
+  try {
+    slide1.addImage({
+      path: getDestinationImageUrl(content.destination),
+      x: 0, y: 0, w: '100%', h: '100%',
+      sizing: { type: 'cover', w: 10, h: 5.625 },
+    });
+    // Dark overlay for text readability
+    slide1.addShape('rect', {
+      x: 0, y: 0, w: '100%', h: '100%',
+      fill: { color: COLORS.dark, transparency: 40 },
+    });
+  } catch {
+    // If image fails, continue with solid background
+  }
+
+  // Gradient accent bar at top
   slide1.addShape('rect', { x: 0, y: 0, w: '100%', h: 0.15, fill: { color: COLORS.primary } });
 
-  slide1.addText('PRODUCT TRAINING', {
-    x: 0.5, y: 1.5, w: 9, h: 0.7,
-    fontSize: 42, bold: true, color: COLORS.white, align: 'center', fontFace: 'Arial',
-  });
-
+  // Destination name - large and bold
   slide1.addText(content.destination.toUpperCase(), {
-    x: 0.5, y: 2.3, w: 9, h: 0.8,
-    fontSize: 52, bold: true, color: COLORS.warning, align: 'center', fontFace: 'Arial',
+    x: 0.5, y: 1.8, w: 9, h: 1.0,
+    fontSize: 56, bold: true, color: COLORS.white, align: 'center', fontFace: 'Arial',
+    shadow: { type: 'outer', blur: 10, offset: 3, angle: 45, opacity: 0.5, color: '000000' },
   });
 
-  slide1.addShape('rect', { x: 3.5, y: 3.3, w: 3, h: 0.03, fill: { color: COLORS.primary } });
-
-  slide1.addText('Improving Trip-to-Passthrough Conversion', {
-    x: 0.5, y: 3.6, w: 9, h: 0.4,
-    fontSize: 18, color: COLORS.light, align: 'center', fontFace: 'Arial',
+  // Subtitle
+  slide1.addText('Global Travel Advisor Training', {
+    x: 0.5, y: 2.9, w: 9, h: 0.5,
+    fontSize: 24, color: COLORS.lighter, align: 'center', fontFace: 'Arial',
   });
 
+  // Decorative line
+  slide1.addShape('rect', { x: 3.5, y: 3.5, w: 3, h: 0.04, fill: { color: COLORS.warning } });
+
+  // Session info badge
+  slide1.addShape('roundRect', {
+    x: 3.2, y: 4.0, w: 3.6, h: 0.5,
+    fill: { color: COLORS.darkAlt, transparency: 30 },
+    line: { color: COLORS.primary, width: 1 },
+  });
   slide1.addText('45-Minute Training Session', {
-    x: 0.5, y: 4.4, w: 9, h: 0.3,
-    fontSize: 14, color: COLORS.light, align: 'center', fontFace: 'Arial',
+    x: 3.2, y: 4.05, w: 3.6, h: 0.45,
+    fontSize: 14, color: COLORS.white, align: 'center', fontFace: 'Arial',
   });
 
   // ===== SLIDE 2: AGENDA =====
   const slide2 = pptx.addSlide();
   slide2.background = { color: COLORS.dark };
-  addSlideHeader(slide2, 'Training Agenda', '45 Minutes');
+  addSlideHeader(slide2, 'Training Agenda', '45 Minutes of Destination Expertise', '📋');
 
   const agendaItems = [
-    { num: '01', title: 'Destination Overview', time: '5 min', color: COLORS.success },
-    { num: '02', title: 'Hotels & Accommodations', time: '10 min', color: COLORS.primary },
-    { num: '03', title: 'Experiences & Excursions', time: '10 min', color: COLORS.secondary },
-    { num: '04', title: 'Sales Techniques', time: '10 min', color: COLORS.warning },
-    { num: '05', title: 'Handling Objections', time: '5 min', color: COLORS.danger },
-    { num: '06', title: 'Quiz & Discussion', time: '5 min', color: COLORS.success },
+    { num: '01', title: 'Destination Overview & Key Facts', time: '8 min', color: COLORS.accent, icon: '🌍' },
+    { num: '02', title: 'Accommodations Deep Dive', time: '10 min', color: COLORS.warning, icon: '🏨' },
+    { num: '03', title: 'Experiences & Excursions', time: '10 min', color: COLORS.success, icon: '✨' },
+    { num: '04', title: 'Client Matching & Advisor Tips', time: '10 min', color: COLORS.secondary, icon: '💡' },
+    { num: '05', title: 'Knowledge Check & Discussion', time: '7 min', color: COLORS.primary, icon: '🎯' },
   ];
 
   agendaItems.forEach((item, i) => {
-    const y = 1.3 + i * 0.75;
+    const y = 1.55 + i * 0.85;
+
+    // Card with colored left border
     slide2.addShape('rect', {
-      x: 0.8, y, w: 8.4, h: 0.65,
+      x: 0.8, y, w: 8.4, h: 0.72,
       fill: { color: COLORS.darkAlt },
-      line: { color: item.color, width: 1.5 },
+    });
+    slide2.addShape('rect', {
+      x: 0.8, y, w: 0.08, h: 0.72,
+      fill: { color: item.color },
+    });
+
+    // Number badge
+    slide2.addShape('roundRect', {
+      x: 1.0, y: y + 0.15, w: 0.55, h: 0.42,
+      fill: { color: item.color },
     });
     slide2.addText(item.num, {
-      x: 1.0, y: y + 0.12, w: 0.5, h: 0.4,
-      fontSize: 18, bold: true, color: item.color, fontFace: 'Arial',
+      x: 1.0, y: y + 0.18, w: 0.55, h: 0.38,
+      fontSize: 14, bold: true, color: COLORS.white, align: 'center', fontFace: 'Arial',
     });
-    slide2.addText(item.title, {
-      x: 1.7, y: y + 0.15, w: 5, h: 0.35,
+
+    // Icon and title
+    slide2.addText(`${item.icon}  ${item.title}`, {
+      x: 1.7, y: y + 0.18, w: 5.5, h: 0.38,
       fontSize: 16, color: COLORS.white, fontFace: 'Arial',
     });
+
+    // Duration
     slide2.addText(item.time, {
-      x: 7.8, y: y + 0.18, w: 1.2, h: 0.3,
+      x: 7.8, y: y + 0.22, w: 1.2, h: 0.3,
       fontSize: 12, color: COLORS.light, align: 'right', fontFace: 'Arial',
     });
   });
 
-  // ===== SLIDE 3: DESTINATION OVERVIEW =====
+  // ===== SLIDE 3: DESTINATION OVERVIEW WITH IMAGE =====
   const slide3 = pptx.addSlide();
   slide3.background = { color: COLORS.dark };
-  addSlideHeader(slide3, content.destination, 'Destination Overview');
 
-  // Introduction
+  // Add destination image on right side
+  try {
+    slide3.addImage({
+      path: getDestinationImageUrl(content.destination, `${content.destination} scenic`),
+      x: 5.2, y: 0, w: 4.8, h: 5.625,
+      sizing: { type: 'cover', w: 4.8, h: 5.625 },
+    });
+    // Gradient fade overlay
+    slide3.addShape('rect', {
+      x: 5.2, y: 0, w: 1, h: 5.625,
+      fill: { color: COLORS.dark, transparency: 0 },
+    });
+  } catch {
+    // Continue without image
+  }
+
+  addSlideHeader(slide3, content.destination, 'Destination Overview', '🌍');
+
+  // Introduction card
   slide3.addShape('rect', {
-    x: 0.5, y: 1.3, w: 9, h: 1.2,
+    x: 0.5, y: 1.5, w: 4.5, h: 1.4,
     fill: { color: COLORS.darkAlt },
+    line: { color: COLORS.accent, width: 1 },
   });
   slide3.addText(content.overview.introduction, {
-    x: 0.7, y: 1.4, w: 8.6, h: 1.0,
-    fontSize: 14, color: COLORS.white, fontFace: 'Arial',
+    x: 0.65, y: 1.6, w: 4.2, h: 1.2,
+    fontSize: 12, color: COLORS.white, fontFace: 'Arial',
   });
 
-  // Best time and trip length
-  slide3.addText(`Best Time to Visit: ${content.overview.bestTimeToVisit}`, {
-    x: 0.5, y: 2.7, w: 4.3, h: 0.4,
-    fontSize: 12, color: COLORS.success, fontFace: 'Arial',
+  // Quick facts row
+  slide3.addShape('roundRect', {
+    x: 0.5, y: 3.0, w: 2.1, h: 0.6,
+    fill: { color: COLORS.success, transparency: 80 },
+    line: { color: COLORS.success, width: 1 },
   });
-  slide3.addText(`Ideal Trip Length: ${content.overview.idealTripLength}`, {
-    x: 5.2, y: 2.7, w: 4.3, h: 0.4,
-    fontSize: 12, color: COLORS.warning, fontFace: 'Arial',
+  slide3.addText(`🗓️ ${content.overview.bestTimeToVisit}`, {
+    x: 0.6, y: 3.1, w: 2.0, h: 0.45,
+    fontSize: 10, color: COLORS.white, fontFace: 'Arial',
   });
 
-  // USPs
-  slide3.addText('Unique Selling Points', {
-    x: 0.5, y: 3.2, w: 9, h: 0.35,
-    fontSize: 14, bold: true, color: COLORS.primary, fontFace: 'Arial',
+  slide3.addShape('roundRect', {
+    x: 2.7, y: 3.0, w: 2.3, h: 0.6,
+    fill: { color: COLORS.warning, transparency: 80 },
+    line: { color: COLORS.warning, width: 1 },
   });
+  slide3.addText(`⏱️ ${content.overview.idealTripLength}`, {
+    x: 2.8, y: 3.1, w: 2.1, h: 0.45,
+    fontSize: 10, color: COLORS.white, fontFace: 'Arial',
+  });
+
+  // Key facts
+  slide3.addText('Key Facts', {
+    x: 0.5, y: 3.75, w: 4.5, h: 0.35,
+    fontSize: 12, bold: true, color: COLORS.accent, fontFace: 'Arial',
+  });
+
+  (content.overview.keyFacts || []).slice(0, 4).forEach((fact, i) => {
+    slide3.addText(`• ${fact}`, {
+      x: 0.5, y: 4.1 + i * 0.38, w: 4.5, h: 0.35,
+      fontSize: 10, color: COLORS.lighter, fontFace: 'Arial',
+    });
+  });
+
+  // ===== SLIDE 4: UNIQUE SELLING POINTS =====
+  const slide4 = pptx.addSlide();
+  slide4.background = { color: COLORS.dark };
+  addSlideHeader(slide4, 'Why Clients Love It', 'Unique Selling Points', '⭐');
 
   content.overview.uniqueSellingPoints.slice(0, 6).forEach((usp, i) => {
     const col = i % 2;
     const row = Math.floor(i / 2);
-    slide3.addText(`• ${usp}`, {
-      x: 0.5 + col * 4.7, y: 3.6 + row * 0.55, w: 4.5, h: 0.5,
+    const x = 0.5 + col * 4.7;
+    const y = 1.55 + row * 1.3;
+
+    addGradientCard(slide4, x, y, 4.5, 1.15, COLORS.primary);
+
+    // Number badge
+    slide4.addShape('ellipse', {
+      x: x + 0.15, y: y + 0.15, w: 0.4, h: 0.4,
+      fill: { color: COLORS.primary },
+    });
+    slide4.addText(`${i + 1}`, {
+      x: x + 0.15, y: y + 0.18, w: 0.4, h: 0.35,
+      fontSize: 12, bold: true, color: COLORS.white, align: 'center', fontFace: 'Arial',
+    });
+
+    slide4.addText(usp, {
+      x: x + 0.65, y: y + 0.2, w: 3.7, h: 0.85,
       fontSize: 11, color: COLORS.white, fontFace: 'Arial',
     });
   });
 
-  // ===== SLIDE 4: LUXURY HOTELS =====
-  const slide4 = pptx.addSlide();
-  slide4.background = { color: COLORS.dark };
-  addSlideHeader(slide4, 'Luxury Accommodations', 'Premium Properties');
+  // ===== SLIDE 5: LUXURY HOTELS =====
+  const slide5 = pptx.addSlide();
+  slide5.background = { color: COLORS.dark };
+  addSlideHeader(slide5, 'Luxury Accommodations', 'Premium Properties to Know', '👑');
 
   content.hotels.luxury.forEach((hotel, i) => {
-    const y = 1.3 + i * 1.3;
-    slide4.addShape('rect', {
-      x: 0.5, y, w: 9, h: 1.15,
-      fill: { color: COLORS.darkAlt },
-      line: { color: COLORS.warning, width: 1 },
-    });
-    slide4.addText(hotel.name, {
-      x: 0.7, y: y + 0.1, w: 6, h: 0.35,
+    const y = 1.55 + i * 1.3;
+
+    addGradientCard(slide5, 0.5, y, 9, 1.15, COLORS.warning);
+
+    // Hotel name with star
+    slide5.addText(`⭐ ${hotel.name}`, {
+      x: 0.7, y: y + 0.12, w: 6, h: 0.4,
       fontSize: 16, bold: true, color: COLORS.warning, fontFace: 'Arial',
     });
-    slide4.addText(hotel.location, {
-      x: 7.0, y: y + 0.15, w: 2.3, h: 0.3,
-      fontSize: 11, color: COLORS.light, align: 'right', fontFace: 'Arial',
+
+    // Location badge
+    slide5.addShape('roundRect', {
+      x: 7.5, y: y + 0.12, w: 1.8, h: 0.35,
+      fill: { color: COLORS.darkCard },
     });
-    slide4.addText(hotel.highlights, {
-      x: 0.7, y: y + 0.5, w: 8.6, h: 0.55,
-      fontSize: 12, color: COLORS.white, fontFace: 'Arial',
+    slide5.addText(`📍 ${hotel.location}`, {
+      x: 7.5, y: y + 0.15, w: 1.8, h: 0.3,
+      fontSize: 9, color: COLORS.light, align: 'center', fontFace: 'Arial',
+    });
+
+    slide5.addText(hotel.highlights, {
+      x: 0.7, y: y + 0.55, w: 8.6, h: 0.5,
+      fontSize: 11, color: COLORS.lighter, fontFace: 'Arial',
     });
   });
 
-  // ===== SLIDE 5: MID-RANGE & BOUTIQUE =====
-  const slide5 = pptx.addSlide();
-  slide5.background = { color: COLORS.dark };
-  addSlideHeader(slide5, 'Mid-Range & Boutique', 'Value & Character');
+  // ===== SLIDE 6: MID-RANGE & BOUTIQUE =====
+  const slide6 = pptx.addSlide();
+  slide6.background = { color: COLORS.dark };
+  addSlideHeader(slide6, 'More Great Options', 'Mid-Range & Boutique Properties', '🏨');
 
   // Mid-range section
-  slide5.addText('Mid-Range Options', {
-    x: 0.5, y: 1.2, w: 4.3, h: 0.3,
+  slide6.addText('💎 Mid-Range Excellence', {
+    x: 0.5, y: 1.5, w: 4.3, h: 0.35,
     fontSize: 14, bold: true, color: COLORS.success, fontFace: 'Arial',
   });
 
   content.hotels.midRange.slice(0, 2).forEach((hotel, i) => {
-    const y = 1.55 + i * 0.95;
-    slide5.addShape('rect', {
-      x: 0.5, y, w: 4.3, h: 0.85,
-      fill: { color: COLORS.darkAlt },
-    });
-    slide5.addText(hotel.name, {
-      x: 0.6, y: y + 0.05, w: 4.1, h: 0.3,
+    const y = 1.9 + i * 1.0;
+    addGradientCard(slide6, 0.5, y, 4.3, 0.9, COLORS.success);
+    slide6.addText(hotel.name, {
+      x: 0.65, y: y + 0.08, w: 4.0, h: 0.32,
       fontSize: 13, bold: true, color: COLORS.white, fontFace: 'Arial',
     });
-    slide5.addText(hotel.highlights, {
-      x: 0.6, y: y + 0.4, w: 4.1, h: 0.4,
+    slide6.addText(hotel.highlights, {
+      x: 0.65, y: y + 0.45, w: 4.0, h: 0.4,
       fontSize: 10, color: COLORS.light, fontFace: 'Arial',
     });
   });
 
   // Boutique section
-  slide5.addText('Boutique Properties', {
-    x: 5.2, y: 1.2, w: 4.3, h: 0.3,
+  slide6.addText('🎨 Boutique Character', {
+    x: 5.2, y: 1.5, w: 4.3, h: 0.35,
     fontSize: 14, bold: true, color: COLORS.secondary, fontFace: 'Arial',
   });
 
   content.hotels.boutique.slice(0, 2).forEach((hotel, i) => {
-    const y = 1.55 + i * 0.95;
-    slide5.addShape('rect', {
-      x: 5.2, y, w: 4.3, h: 0.85,
-      fill: { color: COLORS.darkAlt },
-    });
-    slide5.addText(hotel.name, {
-      x: 5.3, y: y + 0.05, w: 4.1, h: 0.3,
+    const y = 1.9 + i * 1.0;
+    addGradientCard(slide6, 5.2, y, 4.3, 0.9, COLORS.secondary);
+    slide6.addText(hotel.name, {
+      x: 5.35, y: y + 0.08, w: 4.0, h: 0.32,
       fontSize: 13, bold: true, color: COLORS.white, fontFace: 'Arial',
     });
-    slide5.addText(hotel.highlights, {
-      x: 5.3, y: y + 0.4, w: 4.1, h: 0.4,
+    slide6.addText(hotel.highlights, {
+      x: 5.35, y: y + 0.45, w: 4.0, h: 0.4,
       fontSize: 10, color: COLORS.light, fontFace: 'Arial',
     });
   });
 
-  // Key selling tip
-  slide5.addShape('rect', {
-    x: 0.5, y: 3.6, w: 9, h: 0.8,
-    fill: { color: '1a1a2e' },
+  // Pro tip
+  slide6.addShape('rect', {
+    x: 0.5, y: 4.1, w: 9, h: 0.7,
+    fill: { color: COLORS.primary, transparency: 85 },
     line: { color: COLORS.primary, width: 1, dashType: 'dash' },
   });
-  slide5.addText('💡 Tip: Match accommodation style to client personality - adventurers love boutiques, families prefer mid-range with facilities', {
-    x: 0.7, y: 3.75, w: 8.6, h: 0.5,
-    fontSize: 12, color: COLORS.white, fontFace: 'Arial',
+  slide6.addText('💡 Pro Tip: Match accommodation style to client personality - adventurers love boutiques, families prefer properties with facilities', {
+    x: 0.7, y: 4.2, w: 8.6, h: 0.5,
+    fontSize: 11, color: COLORS.white, fontFace: 'Arial',
   });
 
-  // ===== SLIDE 6: MUST-DO EXPERIENCES =====
-  const slide6 = pptx.addSlide();
-  slide6.background = { color: COLORS.dark };
-  addSlideHeader(slide6, 'Must-Do Experiences', 'Essential Activities');
-
-  content.excursions.mustDo.forEach((exp, i) => {
-    const y = 1.3 + i * 1.25;
-    slide6.addShape('rect', {
-      x: 0.5, y, w: 9, h: 1.1,
-      fill: { color: COLORS.darkAlt },
-      line: { color: COLORS.success, width: 1 },
-    });
-    slide6.addText(exp.name, {
-      x: 0.7, y: y + 0.1, w: 7, h: 0.35,
-      fontSize: 16, bold: true, color: COLORS.success, fontFace: 'Arial',
-    });
-    slide6.addText(exp.duration, {
-      x: 7.5, y: y + 0.15, w: 1.8, h: 0.25,
-      fontSize: 10, color: COLORS.light, align: 'right', fontFace: 'Arial',
-    });
-    slide6.addText(exp.description, {
-      x: 0.7, y: y + 0.5, w: 8.6, h: 0.5,
-      fontSize: 12, color: COLORS.white, fontFace: 'Arial',
-    });
-  });
-
-  // ===== SLIDE 7: HIDDEN GEMS & CULTURAL =====
+  // ===== SLIDE 7: MUST-DO EXPERIENCES =====
   const slide7 = pptx.addSlide();
   slide7.background = { color: COLORS.dark };
-  addSlideHeader(slide7, 'Hidden Gems & Cultural', 'Differentiation Opportunities');
+  addSlideHeader(slide7, 'Must-Do Experiences', 'Essential Activities to Recommend', '✨');
+
+  content.excursions.mustDo.forEach((exp, i) => {
+    const y = 1.55 + i * 1.3;
+
+    addGradientCard(slide7, 0.5, y, 9, 1.15, COLORS.success);
+
+    slide7.addText(`✨ ${exp.name}`, {
+      x: 0.7, y: y + 0.12, w: 7, h: 0.4,
+      fontSize: 16, bold: true, color: COLORS.success, fontFace: 'Arial',
+    });
+
+    // Duration badge
+    slide7.addShape('roundRect', {
+      x: 7.8, y: y + 0.12, w: 1.5, h: 0.35,
+      fill: { color: COLORS.success, transparency: 70 },
+    });
+    slide7.addText(`⏱️ ${exp.duration}`, {
+      x: 7.8, y: y + 0.15, w: 1.5, h: 0.3,
+      fontSize: 9, color: COLORS.white, align: 'center', fontFace: 'Arial',
+    });
+
+    slide7.addText(exp.description, {
+      x: 0.7, y: y + 0.55, w: 8.6, h: 0.5,
+      fontSize: 11, color: COLORS.lighter, fontFace: 'Arial',
+    });
+  });
+
+  // ===== SLIDE 8: HIDDEN GEMS & CULTURAL =====
+  const slide8 = pptx.addSlide();
+  slide8.background = { color: COLORS.dark };
+  addSlideHeader(slide8, 'Beyond the Highlights', 'Hidden Gems & Cultural Experiences', '🔮');
 
   // Hidden Gems
-  slide7.addText('Hidden Gems', {
-    x: 0.5, y: 1.2, w: 4.3, h: 0.3,
+  slide8.addText('💎 Hidden Gems', {
+    x: 0.5, y: 1.5, w: 4.3, h: 0.35,
     fontSize: 14, bold: true, color: COLORS.warning, fontFace: 'Arial',
   });
 
   content.excursions.hiddenGems.forEach((exp, i) => {
-    const y = 1.55 + i * 1.0;
-    slide7.addShape('rect', {
-      x: 0.5, y, w: 4.3, h: 0.9,
-      fill: { color: COLORS.darkAlt },
+    const y = 1.9 + i * 1.05;
+    addGradientCard(slide8, 0.5, y, 4.3, 0.95, COLORS.warning);
+    slide8.addText(exp.name, {
+      x: 0.65, y: y + 0.08, w: 4.0, h: 0.32,
+      fontSize: 12, bold: true, color: COLORS.warning, fontFace: 'Arial',
     });
-    slide7.addText(exp.name, {
-      x: 0.6, y: y + 0.05, w: 4.1, h: 0.3,
-      fontSize: 13, bold: true, color: COLORS.warning, fontFace: 'Arial',
-    });
-    slide7.addText(exp.description, {
-      x: 0.6, y: y + 0.4, w: 4.1, h: 0.45,
+    slide8.addText(exp.description, {
+      x: 0.65, y: y + 0.45, w: 4.0, h: 0.45,
       fontSize: 10, color: COLORS.light, fontFace: 'Arial',
     });
   });
 
   // Cultural
-  slide7.addText('Cultural Experiences', {
-    x: 5.2, y: 1.2, w: 4.3, h: 0.3,
+  slide8.addText('🎭 Cultural Immersion', {
+    x: 5.2, y: 1.5, w: 4.3, h: 0.35,
     fontSize: 14, bold: true, color: COLORS.secondary, fontFace: 'Arial',
   });
 
   content.excursions.cultural.forEach((exp, i) => {
-    const y = 1.55 + i * 1.0;
-    slide7.addShape('rect', {
-      x: 5.2, y, w: 4.3, h: 0.9,
-      fill: { color: COLORS.darkAlt },
+    const y = 1.9 + i * 1.05;
+    addGradientCard(slide8, 5.2, y, 4.3, 0.95, COLORS.secondary);
+    slide8.addText(exp.name, {
+      x: 5.35, y: y + 0.08, w: 4.0, h: 0.32,
+      fontSize: 12, bold: true, color: COLORS.secondary, fontFace: 'Arial',
     });
-    slide7.addText(exp.name, {
-      x: 5.3, y: y + 0.05, w: 4.1, h: 0.3,
-      fontSize: 13, bold: true, color: COLORS.secondary, fontFace: 'Arial',
-    });
-    slide7.addText(exp.description, {
-      x: 5.3, y: y + 0.4, w: 4.1, h: 0.45,
+    slide8.addText(exp.description, {
+      x: 5.35, y: y + 0.45, w: 4.0, h: 0.45,
       fontSize: 10, color: COLORS.light, fontFace: 'Arial',
     });
   });
 
-  // ===== SLIDE 8: TARGET CLIENTS =====
-  const slide8 = pptx.addSlide();
-  slide8.background = { color: COLORS.dark };
-  addSlideHeader(slide8, 'Ideal Client Profiles', 'Who to Target');
+  // ===== SLIDE 9: IDEAL CLIENTS =====
+  const slide9 = pptx.addSlide();
+  slide9.background = { color: COLORS.dark };
+  addSlideHeader(slide9, 'Ideal Client Profiles', `Who Is ${content.destination} Perfect For?`, '🎯');
 
-  slide8.addText(`Who is ${content.destination} perfect for?`, {
-    x: 0.5, y: 1.2, w: 9, h: 0.35,
-    fontSize: 14, color: COLORS.light, fontFace: 'Arial',
-  });
-
-  content.salesTips.targetClients.forEach((client, i) => {
+  content.advisorTips.idealClients.forEach((client, i) => {
     const col = i % 2;
     const row = Math.floor(i / 2);
-    slide8.addShape('rect', {
-      x: 0.5 + col * 4.7, y: 1.6 + row * 0.75, w: 4.5, h: 0.65,
-      fill: { color: COLORS.darkAlt },
-      line: { color: COLORS.primary, width: 0.5 },
-    });
-    slide8.addText(`✓ ${client}`, {
-      x: 0.6 + col * 4.7, y: 1.7 + row * 0.75, w: 4.3, h: 0.5,
+    const x = 0.5 + col * 4.7;
+    const y = 1.55 + row * 0.85;
+
+    addGradientCard(slide9, x, y, 4.5, 0.72, COLORS.primary);
+    slide9.addText(`✓ ${client}`, {
+      x: x + 0.15, y: y + 0.18, w: 4.2, h: 0.5,
       fontSize: 12, color: COLORS.white, fontFace: 'Arial',
     });
   });
 
-  // ===== SLIDE 9: CONVERSATION STARTERS =====
-  const slide9 = pptx.addSlide();
-  slide9.background = { color: COLORS.dark };
-  addSlideHeader(slide9, 'Conversation Starters', 'Opening Questions');
+  // ===== SLIDE 10: CONVERSATION STARTERS =====
+  const slide10 = pptx.addSlide();
+  slide10.background = { color: COLORS.dark };
+  addSlideHeader(slide10, 'Discovery Questions', 'Finding the Right Fit', '💬');
 
-  content.salesTips.conversationStarters.forEach((starter, i) => {
-    const y = 1.3 + i * 0.7;
-    slide9.addShape('rect', {
-      x: 0.5, y, w: 9, h: 0.6,
+  slide10.addText('Use these questions to discover if this destination matches your client:', {
+    x: 0.5, y: 1.5, w: 9, h: 0.35,
+    fontSize: 12, color: COLORS.light, fontFace: 'Arial',
+  });
+
+  content.advisorTips.conversationStarters.forEach((starter, i) => {
+    const y = 1.95 + i * 0.68;
+
+    slide10.addShape('rect', {
+      x: 0.5, y, w: 9, h: 0.58,
       fill: { color: COLORS.darkAlt },
+      line: { color: COLORS.accent, width: 0.5 },
     });
-    slide9.addText(`"${starter}"`, {
-      x: 0.7, y: y + 0.12, w: 8.6, h: 0.4,
-      fontSize: 13, color: COLORS.white, italic: true, fontFace: 'Arial',
+    slide10.addText(`"${starter}"`, {
+      x: 0.7, y: y + 0.12, w: 8.6, h: 0.38,
+      fontSize: 12, color: COLORS.white, italic: true, fontFace: 'Arial',
     });
   });
 
-  // ===== SLIDE 10: HANDLING OBJECTIONS =====
-  const slide10 = pptx.addSlide();
-  slide10.background = { color: COLORS.dark };
-  addSlideHeader(slide10, 'Handling Objections', 'Common Concerns & Responses');
+  // ===== SLIDE 11: ADDRESSING CONCERNS =====
+  const slide11 = pptx.addSlide();
+  slide11.background = { color: COLORS.dark };
+  addSlideHeader(slide11, 'Addressing Client Concerns', 'Common Questions & Helpful Responses', '🤝');
 
-  content.salesTips.commonObjections.slice(0, 4).forEach((obj, i) => {
-    const y = 1.2 + i * 1.05;
+  content.advisorTips.commonConcerns.slice(0, 4).forEach((item, i) => {
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const x = 0.5 + col * 4.7;
+    const y = 1.55 + row * 2.0;
 
-    // Objection
-    slide10.addShape('rect', {
-      x: 0.5, y, w: 4.3, h: 0.45,
-      fill: { color: COLORS.danger },
+    // Concern
+    slide11.addShape('rect', {
+      x, y, w: 4.5, h: 0.55,
+      fill: { color: COLORS.danger, transparency: 70 },
     });
-    slide10.addText(`"${obj.objection}"`, {
-      x: 0.6, y: y + 0.08, w: 4.1, h: 0.3,
+    slide11.addText(`❓ "${item.concern}"`, {
+      x: x + 0.1, y: y + 0.1, w: 4.3, h: 0.4,
       fontSize: 11, color: COLORS.white, fontFace: 'Arial',
     });
 
     // Response
-    slide10.addShape('rect', {
-      x: 0.5, y: y + 0.48, w: 4.3, h: 0.5,
+    slide11.addShape('rect', {
+      x, y: y + 0.58, w: 4.5, h: 0.85,
       fill: { color: COLORS.darkAlt },
+      line: { color: COLORS.success, width: 1 },
     });
-    slide10.addText(`→ ${obj.response}`, {
-      x: 0.6, y: y + 0.52, w: 4.1, h: 0.45,
+    slide11.addText(`✓ ${item.response}`, {
+      x: x + 0.1, y: y + 0.65, w: 4.3, h: 0.72,
       fontSize: 10, color: COLORS.success, fontFace: 'Arial',
     });
   });
 
-  // ===== SLIDE 11: CLOSING TECHNIQUES =====
-  const slide11 = pptx.addSlide();
-  slide11.background = { color: COLORS.dark };
-  addSlideHeader(slide11, 'Closing Techniques', 'Converting to Passthroughs');
+  // ===== SLIDE 12: PRO TIPS =====
+  const slide12 = pptx.addSlide();
+  slide12.background = { color: COLORS.dark };
+  addSlideHeader(slide12, 'Advisor Pro Tips', 'Insider Knowledge', '🏆');
 
-  content.salesTips.closingTechniques.forEach((technique, i) => {
-    const y = 1.3 + i * 0.8;
-    slide11.addShape('rect', {
-      x: 0.5, y, w: 9, h: 0.7,
-      fill: { color: COLORS.darkAlt },
-      line: { color: COLORS.success, width: 1 },
+  (content.advisorTips.proTips || []).forEach((tip, i) => {
+    const y = 1.55 + i * 0.95;
+
+    addGradientCard(slide12, 0.5, y, 9, 0.82, COLORS.warning);
+
+    // Tip number
+    slide12.addShape('ellipse', {
+      x: 0.7, y: y + 0.2, w: 0.45, h: 0.45,
+      fill: { color: COLORS.warning },
     });
-    slide11.addText(`${i + 1}. ${technique}`, {
-      x: 0.7, y: y + 0.15, w: 8.6, h: 0.45,
+    slide12.addText(`${i + 1}`, {
+      x: 0.7, y: y + 0.24, w: 0.45, h: 0.38,
+      fontSize: 14, bold: true, color: COLORS.dark, align: 'center', fontFace: 'Arial',
+    });
+
+    slide12.addText(tip, {
+      x: 1.3, y: y + 0.22, w: 8.0, h: 0.55,
       fontSize: 13, color: COLORS.white, fontFace: 'Arial',
     });
   });
 
-  // ===== SLIDES 12-16: QUIZ QUESTIONS =====
+  // ===== QUIZ SLIDES =====
   content.quizQuestions.forEach((quiz, qIndex) => {
     const slideQ = pptx.addSlide();
     slideQ.background = { color: COLORS.dark };
-    addSlideHeader(slideQ, `Quiz: Question ${qIndex + 1}`, 'Test Your Knowledge');
+    addSlideHeader(slideQ, `Knowledge Check`, `Question ${qIndex + 1} of ${content.quizQuestions.length}`, '🎯');
 
     slideQ.addText(quiz.question, {
-      x: 0.5, y: 1.3, w: 9, h: 0.8,
+      x: 0.5, y: 1.5, w: 9, h: 0.8,
       fontSize: 18, bold: true, color: COLORS.white, fontFace: 'Arial',
     });
 
     quiz.options.forEach((option, oIndex) => {
-      const y = 2.3 + oIndex * 0.7;
+      const y = 2.4 + oIndex * 0.72;
       const isCorrect = oIndex === quiz.correctAnswer;
-      slideQ.addShape('rect', {
-        x: 0.5, y, w: 9, h: 0.6,
+      const letter = String.fromCharCode(65 + oIndex);
+
+      slide11.addShape('rect', {
+        x: 0.5, y, w: 9, h: 0.62,
         fill: { color: COLORS.darkAlt },
-        line: { color: isCorrect ? COLORS.success : COLORS.light, width: isCorrect ? 2 : 0.5 },
+        line: { color: isCorrect ? COLORS.success : COLORS.darkCard, width: isCorrect ? 2 : 1 },
       });
-      slideQ.addText(`${String.fromCharCode(65 + oIndex)}. ${option}`, {
-        x: 0.7, y: y + 0.15, w: 8.6, h: 0.35,
-        fontSize: 14, color: isCorrect ? COLORS.success : COLORS.white, fontFace: 'Arial',
+
+      // Letter badge
+      slideQ.addShape('roundRect', {
+        x: 0.6, y: y + 0.1, w: 0.45, h: 0.42,
+        fill: { color: isCorrect ? COLORS.success : COLORS.darkCard },
+      });
+      slideQ.addText(letter, {
+        x: 0.6, y: y + 0.14, w: 0.45, h: 0.35,
+        fontSize: 12, bold: true, color: COLORS.white, align: 'center', fontFace: 'Arial',
+      });
+
+      slideQ.addText(option, {
+        x: 1.2, y: y + 0.15, w: 8.1, h: 0.38,
+        fontSize: 13, color: isCorrect ? COLORS.success : COLORS.white, fontFace: 'Arial',
       });
     });
 
     // Explanation
     slideQ.addShape('rect', {
-      x: 0.5, y: 5.1, w: 9, h: 0.6,
-      fill: { color: '1a1a2e' },
+      x: 0.5, y: 5.05, w: 9, h: 0.55,
+      fill: { color: COLORS.warning, transparency: 85 },
+      line: { color: COLORS.warning, width: 1 },
     });
     slideQ.addText(`💡 ${quiz.explanation}`, {
-      x: 0.7, y: 5.2, w: 8.6, h: 0.45,
+      x: 0.7, y: 5.12, w: 8.6, h: 0.42,
       fontSize: 11, color: COLORS.warning, fontFace: 'Arial',
     });
   });
 
-  // ===== FINAL SLIDE: KEY TAKEAWAYS =====
-  const slideFinal = pptx.addSlide();
-  slideFinal.background = { color: COLORS.dark };
-  addSlideHeader(slideFinal, 'Key Takeaways', 'Remember This!');
+  // ===== KEY TAKEAWAYS SLIDE =====
+  const slideTakeaways = pptx.addSlide();
+  slideTakeaways.background = { color: COLORS.dark };
+  addSlideHeader(slideTakeaways, 'Key Takeaways', 'What to Remember', '📝');
 
   const takeaways = [
-    `Know the USPs: ${content.overview.uniqueSellingPoints[0]}`,
-    `Best time to visit: ${content.overview.bestTimeToVisit}`,
-    `Lead with must-do: ${content.excursions.mustDo[0]?.name || 'signature experiences'}`,
-    `Match hotels to client needs - luxury, mid-range, or boutique`,
-    `Use hidden gems to differentiate your recommendations`,
-    `Address objections consultatively, not defensively`,
+    `🌟 USP: ${content.overview.uniqueSellingPoints[0]}`,
+    `🗓️ Best time: ${content.overview.bestTimeToVisit}`,
+    `✨ Must-do: ${content.excursions.mustDo[0]?.name || 'Signature experiences'}`,
+    `🏨 Know your properties across all categories`,
+    `💎 Use hidden gems to differentiate`,
+    `🎯 Match destination to right client profile`,
   ];
 
   takeaways.forEach((takeaway, i) => {
-    const y = 1.3 + i * 0.65;
+    const y = 1.55 + i * 0.65;
+
     slide11.addShape('rect', {
-      x: 0.5, y, w: 0.08, h: 0.55,
+      x: 0.5, y, w: 0.1, h: 0.52,
       fill: { color: COLORS.success },
     });
-    slideFinal.addText(`✓ ${takeaway}`, {
-      x: 0.7, y: y + 0.1, w: 8.8, h: 0.45,
+    slideTakeaways.addText(takeaway, {
+      x: 0.8, y: y + 0.08, w: 8.7, h: 0.45,
       fontSize: 13, color: COLORS.white, fontFace: 'Arial',
     });
   });
 
-  slideFinal.addText('Questions? Discussion?', {
-    x: 0.5, y: 5.0, w: 9, h: 0.4,
+  slideTakeaways.addText('Questions? Let\'s Discuss!', {
+    x: 0.5, y: 5.0, w: 9, h: 0.45,
     fontSize: 20, bold: true, color: COLORS.primary, align: 'center', fontFace: 'Arial',
   });
 
-  // ===== THANK YOU SLIDE =====
+  // ===== THANK YOU SLIDE WITH IMAGE =====
   const slideThank = pptx.addSlide();
   slideThank.background = { color: COLORS.dark };
-  slideThank.addShape('rect', { x: 0, y: 5.45, w: '100%', h: 0.15, fill: { color: COLORS.primary } });
+
+  // Try to add destination image
+  try {
+    slideThank.addImage({
+      path: getDestinationImageUrl(content.destination, `${content.destination} beautiful`),
+      x: 0, y: 0, w: '100%', h: '100%',
+      sizing: { type: 'cover', w: 10, h: 5.625 },
+    });
+    slideThank.addShape('rect', {
+      x: 0, y: 0, w: '100%', h: '100%',
+      fill: { color: COLORS.dark, transparency: 50 },
+    });
+  } catch {
+    // Continue without image
+  }
+
+  slideThank.addShape('rect', { x: 0, y: 5.45, w: '100%', h: 0.18, fill: { color: COLORS.primary } });
 
   slideThank.addText('Training Complete!', {
-    x: 0.5, y: 2.0, w: 9, h: 0.8,
-    fontSize: 44, bold: true, color: COLORS.white, align: 'center', fontFace: 'Arial',
+    x: 0.5, y: 1.8, w: 9, h: 0.9,
+    fontSize: 48, bold: true, color: COLORS.white, align: 'center', fontFace: 'Arial',
+    shadow: { type: 'outer', blur: 10, offset: 3, angle: 45, opacity: 0.5, color: '000000' },
   });
 
   slideThank.addText(content.destination, {
-    x: 0.5, y: 2.9, w: 9, h: 0.6,
-    fontSize: 28, color: COLORS.warning, align: 'center', fontFace: 'Arial',
+    x: 0.5, y: 2.8, w: 9, h: 0.7,
+    fontSize: 32, color: COLORS.warning, align: 'center', fontFace: 'Arial',
   });
 
-  slideThank.addText('Go convert those inquiries!', {
-    x: 0.5, y: 3.7, w: 9, h: 0.4,
-    fontSize: 18, color: COLORS.success, align: 'center', fontFace: 'Arial',
+  slideThank.addText('You\'re now ready to match clients with amazing experiences!', {
+    x: 0.5, y: 3.7, w: 9, h: 0.45,
+    fontSize: 16, color: COLORS.lighter, align: 'center', fontFace: 'Arial',
   });
 
   slideThank.addText('Generated by GTT KPI Report', {
@@ -675,7 +851,7 @@ export const generateTrainingDeck = async (content: TrainingContent): Promise<vo
   });
 
   // Save the file
-  const fileName = `${content.destination.replace(/\s+/g, '_')}_Product_Training_${new Date().toISOString().split('T')[0]}.pptx`;
+  const fileName = `${content.destination.replace(/\s+/g, '_')}_GTA_Training_${new Date().toISOString().split('T')[0]}.pptx`;
   const pptxBlob = await pptx.write({ outputType: 'blob' }) as Blob;
   saveAs(pptxBlob, fileName);
 };
