@@ -682,6 +682,23 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                 Non-Senior Avg
               </button>
               <button
+                onClick={() => setShowTrendLines(!showTrendLines)}
+                className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                  showTrendLines
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-slate-700/70 text-slate-400 hover:bg-slate-600'
+                }`}
+              >
+                Trend Lines {showTrendLines && regressions.size > 0 && `(${regressions.size})`}
+              </button>
+            </div>
+          </div>
+
+          {/* Lead Channel Section */}
+          <div>
+            <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">Lead Channel</label>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              <button
                 onClick={() => toggleAvg('repeat')}
                 className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
                   config.showRepeatClient
@@ -690,7 +707,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                 }`}
                 title={timeSeriesData.repeatClientDaily ? undefined : 'Re-upload data to enable this feature'}
               >
-                Repeat Clients
+                Repeat
               </button>
               <button
                 onClick={() => toggleAvg('b2b')}
@@ -701,17 +718,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                 }`}
                 title={timeSeriesData.b2bDaily ? undefined : 'Re-upload data to enable this feature'}
               >
-                B2B Lead
-              </button>
-              <button
-                onClick={() => setShowTrendLines(!showTrendLines)}
-                className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
-                  showTrendLines
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-700/70 text-slate-400 hover:bg-slate-600'
-                }`}
-              >
-                Trend Lines {showTrendLines && regressions.size > 0 && `(${regressions.size})`}
+                B2B
               </button>
             </div>
           </div>
