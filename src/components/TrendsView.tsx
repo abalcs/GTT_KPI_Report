@@ -113,6 +113,8 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
       showDeptAvg: true,
       showSeniorAvg: false,
       showNonSeniorAvg: false,
+      showRepeatClient: false,
+      showB2b: false,
       dateRangeStart: 0,
       dateRangeEnd: allDates.length - 1,
     };
@@ -165,8 +167,10 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
     if (config.showDeptAvg) count += config.selectedMetrics.length;
     if (config.showSeniorAvg) count += config.selectedMetrics.length;
     if (config.showNonSeniorAvg) count += config.selectedMetrics.length;
+    if (config.showRepeatClient) count += config.selectedMetrics.length;
+    if (config.showB2b) count += config.selectedMetrics.length;
     return count;
-  }, [config.selectedAgents.length, config.selectedMetrics.length, config.showDeptAvg, config.showSeniorAvg, config.showNonSeniorAvg]);
+  }, [config.selectedAgents.length, config.selectedMetrics.length, config.showDeptAvg, config.showSeniorAvg, config.showNonSeniorAvg, config.showRepeatClient, config.showB2b]);
 
   const showPerformanceWarning = totalSeriesCount > MAX_SERIES_WARNING;
 
@@ -216,7 +220,9 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
       config.showSeniorAvg,
       config.showNonSeniorAvg,
       debouncedDateRange.start,
-      debouncedDateRange.end
+      debouncedDateRange.end,
+      config.showRepeatClient || false,
+      config.showB2b || false
     );
 
     const originalCount = rawData.length;
@@ -235,7 +241,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
     }
 
     return { chartData: rawData, isDecimated: false, originalPointCount: originalCount };
-  }, [timeSeriesData, config.selectedAgents, config.selectedMetrics, config.showDeptAvg, config.showSeniorAvg, config.showNonSeniorAvg, debouncedDateRange]);
+  }, [timeSeriesData, config.selectedAgents, config.selectedMetrics, config.showDeptAvg, config.showSeniorAvg, config.showNonSeniorAvg, config.showRepeatClient, config.showB2b, debouncedDateRange]);
 
   // Calculate regressions for all visible series
   const regressions = useMemo(() => {
@@ -278,6 +284,26 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
     if (config.showNonSeniorAvg) {
       for (const metric of config.selectedMetrics) {
         const key = `nonsenior_${metric}`;
+        const regression = calculateSeriesRegression(chartData, key, rSquaredThreshold);
+        if (regression) {
+          results.set(key, regression);
+        }
+      }
+    }
+
+    if (config.showRepeatClient) {
+      for (const metric of config.selectedMetrics) {
+        const key = `repeat_${metric}`;
+        const regression = calculateSeriesRegression(chartData, key, rSquaredThreshold);
+        if (regression) {
+          results.set(key, regression);
+        }
+      }
+    }
+
+    if (config.showB2b) {
+      for (const metric of config.selectedMetrics) {
+        const key = `b2b_${metric}`;
         const regression = calculateSeriesRegression(chartData, key, rSquaredThreshold);
         if (regression) {
           results.set(key, regression);
@@ -379,6 +405,8 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
     if (config.showDeptAvg) avgSources.push('dept');
     if (config.showSeniorAvg) avgSources.push('senior');
     if (config.showNonSeniorAvg) avgSources.push('nonsenior');
+    if (config.showRepeatClient) avgSources.push('repeat');
+    if (config.showB2b) avgSources.push('b2b');
 
     for (const source of avgSources) {
       for (const metric of selectedPercentMetrics) {
@@ -390,7 +418,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
     }
 
     return { percentKeys, countKeys };
-  }, [config.selectedAgents, config.showDeptAvg, config.showSeniorAvg, config.showNonSeniorAvg, selectedPercentMetrics, selectedCountMetrics]);
+  }, [config.selectedAgents, config.showDeptAvg, config.showSeniorAvg, config.showNonSeniorAvg, config.showRepeatClient, config.showB2b, selectedPercentMetrics, selectedCountMetrics]);
 
   // Calculate Y-axis domains for both metric types - optimized with pre-built keys
   const yAxisConfig = useMemo(() => {
@@ -462,7 +490,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
   }, []);
 
   // Toggle average lines
-  const toggleAvg = useCallback((type: 'dept' | 'senior' | 'nonsenior') => {
+  const toggleAvg = useCallback((type: 'dept' | 'senior' | 'nonsenior' | 'repeat' | 'b2b') => {
     setConfig((prev) => {
       switch (type) {
         case 'dept':
@@ -471,6 +499,10 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
           return { ...prev, showSeniorAvg: !prev.showSeniorAvg };
         case 'nonsenior':
           return { ...prev, showNonSeniorAvg: !prev.showNonSeniorAvg };
+        case 'repeat':
+          return { ...prev, showRepeatClient: !prev.showRepeatClient };
+        case 'b2b':
+          return { ...prev, showB2b: !prev.showB2b };
         default:
           return prev;
       }
@@ -648,6 +680,28 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                 }`}
               >
                 Non-Senior Avg
+              </button>
+              <button
+                onClick={() => toggleAvg('repeat')}
+                className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                  config.showRepeatClient
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-slate-700/70 text-slate-400 hover:bg-slate-600'
+                }`}
+                title={timeSeriesData.repeatClientDaily ? undefined : 'Re-upload data to enable this feature'}
+              >
+                Repeat Clients
+              </button>
+              <button
+                onClick={() => toggleAvg('b2b')}
+                className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                  config.showB2b
+                    ? 'bg-teal-600 text-white'
+                    : 'bg-slate-700/70 text-slate-400 hover:bg-slate-600'
+                }`}
+                title={timeSeriesData.b2bDaily ? undefined : 'Re-upload data to enable this feature'}
+              >
+                B2B Lead
               </button>
               <button
                 onClick={() => setShowTrendLines(!showTrendLines)}
@@ -858,9 +912,9 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
 
       {/* Chart */}
       <div className="bg-slate-900/50 rounded-xl p-4">
-        {chartDataWithTrends.length === 0 || config.selectedAgents.length === 0 ? (
+        {chartDataWithTrends.length === 0 || (config.selectedAgents.length === 0 && !config.showDeptAvg && !config.showSeniorAvg && !config.showNonSeniorAvg && !config.showRepeatClient && !config.showB2b) ? (
           <div className="h-96 flex items-center justify-center text-slate-400">
-            Select at least one agent to view trends
+            Select at least one agent or comparison line to view trends
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={500}>
@@ -918,6 +972,8 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                   if (source === 'dept') displaySource = 'Department';
                   else if (source === 'senior') displaySource = 'Senior Avg';
                   else if (source === 'nonsenior') displaySource = 'Non-Senior Avg';
+                  else if (source === 'repeat') displaySource = 'Repeat Clients';
+                  else if (source === 'b2b') displaySource = 'B2B Lead';
 
                   // Format the value
                   const formattedValue = isPercent
@@ -947,6 +1003,8 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                       if (name === 'dept') return `Dept (${metricLabel})`;
                       if (name === 'senior') return `Sr (${metricLabel})`;
                       if (name === 'nonsenior') return `Non-Sr (${metricLabel})`;
+                      if (name === 'repeat') return `Repeat (${metricLabel})`;
+                      if (name === 'b2b') return `B2B (${metricLabel})`;
                       // For agents, just show first name + metric abbreviation
                       const shortName = name.split(' ')[0];
                       return `${shortName} (${metricLabel})`;
@@ -1028,6 +1086,38 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                     name={`nonsenior_${metric}`}
                     yAxisId={isPercentMetric(metric) ? 'percent' : 'count'}
                     stroke="#94A3B8"
+                    strokeWidth={3}
+                    strokeDasharray="8 4"
+                    dot={false}
+                    connectNulls
+                  />
+                ))}
+
+              {!hideRawData && config.showRepeatClient &&
+                config.selectedMetrics.map((metric) => (
+                  <Line
+                    key={`repeat_${metric}`}
+                    type="monotone"
+                    dataKey={`repeat_${metric}`}
+                    name={`repeat_${metric}`}
+                    yAxisId={isPercentMetric(metric) ? 'percent' : 'count'}
+                    stroke="#9333EA"
+                    strokeWidth={3}
+                    strokeDasharray="8 4"
+                    dot={false}
+                    connectNulls
+                  />
+                ))}
+
+              {!hideRawData && config.showB2b &&
+                config.selectedMetrics.map((metric) => (
+                  <Line
+                    key={`b2b_${metric}`}
+                    type="monotone"
+                    dataKey={`b2b_${metric}`}
+                    name={`b2b_${metric}`}
+                    yAxisId={isPercentMetric(metric) ? 'percent' : 'count'}
+                    stroke="#14B8A6"
                     strokeWidth={3}
                     strokeDasharray="8 4"
                     dot={false}
@@ -1130,6 +1220,52 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                     />
                   );
                 })}
+
+              {showTrendLines && config.showRepeatClient &&
+                config.selectedMetrics.map((metric) => {
+                  const key = `repeat_${metric}`;
+                  const regression = regressions.get(key);
+                  if (!regression) return null;
+                  return (
+                    <Line
+                      key={`${key}_trend`}
+                      type="linear"
+                      dataKey={`${key}_trend`}
+                      name={`${key}_trend`}
+                      yAxisId={isPercentMetric(metric) ? 'percent' : 'count'}
+                      stroke="#9333EA"
+                      strokeWidth={2}
+                      strokeDasharray="2 2"
+                      strokeOpacity={0.7}
+                      dot={false}
+                      connectNulls
+                      legendType="none"
+                    />
+                  );
+                })}
+
+              {showTrendLines && config.showB2b &&
+                config.selectedMetrics.map((metric) => {
+                  const key = `b2b_${metric}`;
+                  const regression = regressions.get(key);
+                  if (!regression) return null;
+                  return (
+                    <Line
+                      key={`${key}_trend`}
+                      type="linear"
+                      dataKey={`${key}_trend`}
+                      name={`${key}_trend`}
+                      yAxisId={isPercentMetric(metric) ? 'percent' : 'count'}
+                      stroke="#14B8A6"
+                      strokeWidth={2}
+                      strokeDasharray="2 2"
+                      strokeOpacity={0.7}
+                      dot={false}
+                      connectNulls
+                      legendType="none"
+                    />
+                  );
+                })}
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -1153,6 +1289,8 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
                 const displayName = name === 'dept' ? 'Department'
                   : name === 'senior' ? 'Senior Avg'
                   : name === 'nonsenior' ? 'Non-Senior Avg'
+                  : name === 'repeat' ? 'Repeat Clients'
+                  : name === 'b2b' ? 'B2B Lead'
                   : name;
 
                 // Calculate trend direction as % change over the period

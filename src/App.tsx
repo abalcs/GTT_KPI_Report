@@ -23,7 +23,8 @@ import {
   countNonConvertedWithDates,
   buildTripDateMap,
   calculateMetrics,
-  buildTimeSeriesOptimized
+  buildTimeSeriesOptimized,
+  calculateSegmentDailyAverages
 } from './utils/metricsCalculator';
 import {
   loadRecords,
@@ -247,12 +248,23 @@ function App() {
         nonConvertedResult.byDate
       );
 
-      setTimeSeriesData(tsData);
-      saveTimeSeriesData(tsData);
+      // Calculate segment-specific daily averages from raw trips data
+      const repeatClientDaily = calculateSegmentDailyAverages(tripsRows, 'repeat', startDate, endDate);
+      const b2bDaily = calculateSegmentDailyAverages(tripsRows, 'b2b', startDate, endDate);
+
+      // Add segment data to time series
+      const tsDataWithSegments: TimeSeriesData = {
+        ...tsData,
+        repeatClientDaily: repeatClientDaily.length > 0 ? repeatClientDaily : undefined,
+        b2bDaily: b2bDaily.length > 0 ? b2bDaily : undefined,
+      };
+
+      setTimeSeriesData(tsDataWithSegments);
+      saveTimeSeriesData(tsDataWithSegments);
 
       // Analyze and update personal records
       const currentRecords = loadRecords();
-      const { updatedRecords, updates } = analyzeAndUpdateRecords(tsData, currentRecords);
+      const { updatedRecords, updates } = analyzeAndUpdateRecords(tsDataWithSegments, currentRecords);
 
       if (updates.length > 0) {
         saveRecords(updatedRecords);

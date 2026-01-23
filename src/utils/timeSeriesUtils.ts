@@ -21,7 +21,9 @@ export const mergeSeriesForChart = (
   showSeniorAvg: boolean,
   showNonSeniorAvg: boolean,
   dateStartIdx: number,
-  dateEndIdx: number
+  dateEndIdx: number,
+  showRepeatClient: boolean = false,
+  showB2b: boolean = false
 ): Record<string, unknown>[] => {
   // Get all unique dates
   const allDates = new Set<string>();
@@ -52,6 +54,12 @@ export const mergeSeriesForChart = (
   const deptDayMap = new Map(timeSeriesData.departmentDaily.map((d) => [d.date, d]));
   const seniorDayMap = new Map(timeSeriesData.seniorDaily.map((d) => [d.date, d]));
   const nonSeniorDayMap = new Map(timeSeriesData.nonSeniorDaily.map((d) => [d.date, d]));
+  const repeatClientDayMap = timeSeriesData.repeatClientDaily
+    ? new Map(timeSeriesData.repeatClientDaily.map((d) => [d.date, d]))
+    : new Map();
+  const b2bDayMap = timeSeriesData.b2bDaily
+    ? new Map(timeSeriesData.b2bDaily.map((d) => [d.date, d]))
+    : new Map();
 
   // Build data points - now all lookups are O(1)
   return filteredDates.map((date) => {
@@ -90,6 +98,8 @@ export const mergeSeriesForChart = (
     const deptDay = deptDayMap.get(date);
     const seniorDay = seniorDayMap.get(date);
     const nonSeniorDay = nonSeniorDayMap.get(date);
+    const repeatClientDay = repeatClientDayMap.get(date);
+    const b2bDay = b2bDayMap.get(date);
 
     for (const metric of selectedMetrics) {
       if (showDeptAvg && deptDay) {
@@ -100,6 +110,12 @@ export const mergeSeriesForChart = (
       }
       if (showNonSeniorAvg && nonSeniorDay) {
         point[`nonsenior_${metric}`] = nonSeniorDay[metric as keyof typeof nonSeniorDay];
+      }
+      if (showRepeatClient && repeatClientDay) {
+        point[`repeat_${metric}`] = repeatClientDay[metric as keyof typeof repeatClientDay];
+      }
+      if (showB2b && b2bDay) {
+        point[`b2b_${metric}`] = b2bDay[metric as keyof typeof b2bDay];
       }
     }
 

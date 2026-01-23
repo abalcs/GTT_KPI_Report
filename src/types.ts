@@ -88,6 +88,8 @@ export interface TimeSeriesData {
   departmentDaily: DailyRatioPoint[];
   seniorDaily: DailyRatioPoint[];
   nonSeniorDaily: DailyRatioPoint[];
+  repeatClientDaily?: DailyRatioPoint[];  // Repeat clients only
+  b2bDaily?: DailyRatioPoint[];           // B2B lead channel only
 }
 
 export interface ChartConfig {
@@ -96,6 +98,8 @@ export interface ChartConfig {
   showDeptAvg: boolean;
   showSeniorAvg: boolean;
   showNonSeniorAvg: boolean;
+  showRepeatClient?: boolean;
+  showB2b?: boolean;
   dateRangeStart: number; // Index into date array
   dateRangeEnd: number;
 }

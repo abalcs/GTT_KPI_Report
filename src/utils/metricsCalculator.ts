@@ -500,3 +500,93 @@ export const buildTimeSeriesOptimized = (
     nonSeniorDaily: calcGroupDaily(nonSeniorAgents),
   };
 };
+
+// Helper to find a column case-insensitively
+const findColumn = (row: CSVRow, possibleNames: string[]): string | null => {
+  const keys = Object.keys(row);
+  for (const name of possibleNames) {
+    const found = keys.find(k => k.toLowerCase().includes(name.toLowerCase()));
+    if (found) return found;
+  }
+  return null;
+};
+
+// Calculate daily averages for a specific segment (repeat clients or B2B)
+export const calculateSegmentDailyAverages = (
+  tripsRows: CSVRow[],
+  segmentType: 'repeat' | 'b2b',
+  startDate: string,
+  endDate: string
+): import('../types').DailyRatioPoint[] => {
+  if (tripsRows.length === 0) return [];
+
+  // Find relevant columns
+  const segmentCol = segmentType === 'repeat'
+    ? findColumn(tripsRows[0], ['repeat/new', 'repeat', 'client type', 'customer type'])
+    : findColumn(tripsRows[0], ['b2b/b2c', 'b2b', 'business type', 'client category', 'lead channel']);
+
+  const dateCol = findColumn(tripsRows[0], ['created date', 'trip: created date', 'date']);
+  const passthroughDateCol = findColumn(tripsRows[0], ['passthrough to sales date', 'passthrough date']);
+
+  if (!segmentCol || !dateCol) return [];
+
+  // Convert filter dates to integers for comparison (avoids timezone issues)
+  const startDateInt = startDate ? parseInt(startDate.replace(/-/g, ''), 10) : 0;
+  const endDateInt = endDate ? parseInt(endDate.replace(/-/g, ''), 10) : 99999999;
+
+  // Track daily stats for the segment
+  const dailyStats: Map<string, { trips: number; passthroughs: number }> = new Map();
+
+  for (const row of tripsRows) {
+    const segmentValue = (row[segmentCol] || '').toString().toLowerCase().trim();
+
+    // Determine if this row matches the segment
+    let matchesSegment = false;
+    if (segmentType === 'repeat') {
+      matchesSegment = segmentValue === 'repeat' || segmentValue === 'returning' || segmentValue === 'existing';
+    } else {
+      matchesSegment = segmentValue === 'b2b' || segmentValue.includes('b2b') || segmentValue === 'business';
+    }
+
+    if (!matchesSegment) continue;
+
+    // Parse date
+    const dateStr = row[dateCol];
+    const parsedDate = parseDate(dateStr?.toString() || '');
+    if (!parsedDate) continue;
+
+    // Apply date range filter
+    const parsedDateInt = parseInt(parsedDate.replace(/-/g, ''), 10);
+    if (parsedDateInt < startDateInt || parsedDateInt > endDateInt) continue;
+
+    // Check for passthrough
+    const passthroughValue = passthroughDateCol ? row[passthroughDateCol] : null;
+    const hasPassthrough = passthroughValue && passthroughValue.toString().trim() !== '';
+
+    // Aggregate by date
+    if (!dailyStats.has(parsedDate)) {
+      dailyStats.set(parsedDate, { trips: 0, passthroughs: 0 });
+    }
+    const stats = dailyStats.get(parsedDate)!;
+    stats.trips++;
+    if (hasPassthrough) stats.passthroughs++;
+  }
+
+  // Convert to DailyRatioPoint array
+  const sortedDates = Array.from(dailyStats.keys()).sort();
+  return sortedDates.map(date => {
+    const stats = dailyStats.get(date)!;
+    return {
+      date,
+      tq: 0, // We don't have quotes data here
+      tp: stats.trips > 0 ? (stats.passthroughs / stats.trips) * 100 : 0,
+      pq: 0,
+      hp: 0,
+      nc: 0,
+      trips: stats.trips,
+      quotes: 0,
+      passthroughs: stats.passthroughs,
+      bookings: 0,
+    };
+  });
+};
