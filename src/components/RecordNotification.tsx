@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { RecordUpdate } from '../utils/recordsTracker';
 import { formatMetricName, formatPeriodName, formatRecordValue } from '../utils/recordsTracker';
 
@@ -14,11 +14,20 @@ export const RecordNotification: React.FC<RecordNotificationProps> = ({ updates,
 
   const currentUpdate = updates[currentIndex];
 
+  const handleDismiss = useCallback(() => {
+    setIsExiting(true);
+    setTimeout(() => {
+      setIsVisible(false);
+      onDismiss();
+    }, 300);
+  }, [onDismiss]);
+
   // Auto-dismiss after showing all updates
   useEffect(() => {
     if (!currentUpdate) {
-      handleDismiss();
-      return;
+      // Defer state update to avoid synchronous setState in effect
+      const timeout = setTimeout(handleDismiss, 0);
+      return () => clearTimeout(timeout);
     }
 
     // Auto-advance to next notification after 5 seconds
@@ -31,15 +40,7 @@ export const RecordNotification: React.FC<RecordNotificationProps> = ({ updates,
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, [currentIndex, updates.length, currentUpdate]);
-
-  const handleDismiss = () => {
-    setIsExiting(true);
-    setTimeout(() => {
-      setIsVisible(false);
-      onDismiss();
-    }, 300);
-  };
+  }, [currentIndex, updates.length, currentUpdate, handleDismiss]);
 
   const handleNext = () => {
     if (currentIndex < updates.length - 1) {
@@ -118,7 +119,7 @@ export const RecordNotification: React.FC<RecordNotificationProps> = ({ updates,
                 <div className="text-white/60 text-xs mb-1">Previous</div>
                 <div className="text-white/80 font-semibold">
                   {currentUpdate.previousValue !== null
-                    ? formatRecordValue(currentUpdate.metric as any, currentUpdate.previousValue)
+                    ? formatRecordValue(currentUpdate.metric, currentUpdate.previousValue)
                     : '—'
                   }
                 </div>
@@ -131,7 +132,7 @@ export const RecordNotification: React.FC<RecordNotificationProps> = ({ updates,
               <div className="text-center flex-1">
                 <div className="text-yellow-300 text-xs mb-1">New Record!</div>
                 <div className="text-yellow-300 font-bold text-xl">
-                  {formatRecordValue(currentUpdate.metric as any, currentUpdate.newValue)}
+                  {formatRecordValue(currentUpdate.metric, currentUpdate.newValue)}
                 </div>
               </div>
             </div>

@@ -15,6 +15,63 @@ const formatPercent = (value: number): string => {
   return `${value.toFixed(1)}%`;
 };
 
+const COLOR_CLASSES: Record<string, { active: string; inactive: string }> = {
+  gray: {
+    active: 'bg-gray-600 text-white',
+    inactive: 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+  },
+  blue: {
+    active: 'bg-blue-600 text-white',
+    inactive: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+  },
+  green: {
+    active: 'bg-green-600 text-white',
+    inactive: 'bg-green-100 text-green-700 hover:bg-green-200',
+  },
+  purple: {
+    active: 'bg-purple-600 text-white',
+    inactive: 'bg-purple-100 text-purple-700 hover:bg-purple-200',
+  },
+  orange: {
+    active: 'bg-orange-600 text-white',
+    inactive: 'bg-orange-100 text-orange-700 hover:bg-orange-200',
+  },
+  cyan: {
+    active: 'bg-cyan-600 text-white',
+    inactive: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200',
+  },
+  rose: {
+    active: 'bg-rose-600 text-white',
+    inactive: 'bg-rose-100 text-rose-700 hover:bg-rose-200',
+  },
+};
+
+interface SortButtonProps {
+  label: string;
+  sortKeyVal: SortKey;
+  color?: string;
+  sortKey: SortKey;
+  sortDir: 'asc' | 'desc';
+  onSort: (key: SortKey) => void;
+}
+
+const SortButton: React.FC<SortButtonProps> = ({ label, sortKeyVal, color = 'gray', sortKey, sortDir, onSort }) => {
+  const classes = COLOR_CLASSES[color] || COLOR_CLASSES.gray;
+  return (
+    <button
+      onClick={() => onSort(sortKeyVal)}
+      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+        sortKey === sortKeyVal ? classes.active : classes.inactive
+      }`}
+    >
+      {label}
+      {sortKey === sortKeyVal && (
+        <span className="ml-1">{sortDir === 'desc' ? '↓' : '↑'}</span>
+      )}
+    </button>
+  );
+};
+
 export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, seniors }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>('trips');
@@ -113,6 +170,9 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
     };
   }, [teamData]);
 
+  // PERF: Memoize getAllValues with useCallback - must be before early return to follow hook rules
+  const getAllValues = useCallback((key: keyof typeof sortedTeams[0]) => sortedTeams.map(t => t[key] as number), [sortedTeams]);
+
   if (teams.length < 2 && !hasSeniors) {
     return null;
   }
@@ -124,54 +184,6 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
       setSortKey(key);
       setSortDir('desc');
     }
-  };
-
-  const colorClasses: Record<string, { active: string; inactive: string }> = {
-    gray: {
-      active: 'bg-gray-600 text-white',
-      inactive: 'bg-gray-100 text-gray-700 hover:bg-gray-200',
-    },
-    blue: {
-      active: 'bg-blue-600 text-white',
-      inactive: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
-    },
-    green: {
-      active: 'bg-green-600 text-white',
-      inactive: 'bg-green-100 text-green-700 hover:bg-green-200',
-    },
-    purple: {
-      active: 'bg-purple-600 text-white',
-      inactive: 'bg-purple-100 text-purple-700 hover:bg-purple-200',
-    },
-    orange: {
-      active: 'bg-orange-600 text-white',
-      inactive: 'bg-orange-100 text-orange-700 hover:bg-orange-200',
-    },
-    cyan: {
-      active: 'bg-cyan-600 text-white',
-      inactive: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200',
-    },
-    rose: {
-      active: 'bg-rose-600 text-white',
-      inactive: 'bg-rose-100 text-rose-700 hover:bg-rose-200',
-    },
-  };
-
-  const SortButton = ({ label, sortKeyVal, color = 'gray' }: { label: string; sortKeyVal: SortKey; color?: string }) => {
-    const classes = colorClasses[color] || colorClasses.gray;
-    return (
-      <button
-        onClick={() => handleSort(sortKeyVal)}
-        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-          sortKey === sortKeyVal ? classes.active : classes.inactive
-        }`}
-      >
-        {label}
-        {sortKey === sortKeyVal && (
-          <span className="ml-1">{sortDir === 'desc' ? '↓' : '↑'}</span>
-        )}
-      </button>
-    );
   };
 
   // Calculate relative performance for color coding
@@ -189,9 +201,6 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
     if (effectiveRatio >= 0.25) return 'text-gray-700';
     return 'text-rose-500';
   };
-
-  // PERF: Memoize getAllValues with useCallback - used in render loop
-  const getAllValues = useCallback((key: keyof typeof sortedTeams[0]) => sortedTeams.map(t => t[key] as number), [sortedTeams]);
 
   // Table row data configuration
   const metricRows = [
@@ -265,16 +274,16 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
 
             <div className="flex flex-wrap gap-2">
               <span className="text-sm text-gray-500 self-center">Sort by:</span>
-              <SortButton label="Name" sortKeyVal="name" />
-              <SortButton label="Trips" sortKeyVal="trips" />
-              <SortButton label="Quotes" sortKeyVal="quotes" />
-              <SortButton label="Passthroughs" sortKeyVal="passthroughs" />
-              <SortButton label="T>Q" sortKeyVal="tq" color="blue" />
-              <SortButton label="T>P" sortKeyVal="tp" color="green" />
-              <SortButton label="P>Q" sortKeyVal="pq" color="purple" />
-              <SortButton label="Hot Pass" sortKeyVal="hotPass" color="orange" />
-              <SortButton label="Bookings" sortKeyVal="bookings" color="cyan" />
-              <SortButton label="% Non-Conv" sortKeyVal="nonConverted" color="rose" />
+              <SortButton label="Name" sortKeyVal="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortButton label="Trips" sortKeyVal="trips" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortButton label="Quotes" sortKeyVal="quotes" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortButton label="Passthroughs" sortKeyVal="passthroughs" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortButton label="T>Q" sortKeyVal="tq" color="blue" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortButton label="T>P" sortKeyVal="tp" color="green" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortButton label="P>Q" sortKeyVal="pq" color="purple" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortButton label="Hot Pass" sortKeyVal="hotPass" color="orange" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortButton label="Bookings" sortKeyVal="bookings" color="cyan" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortButton label="% Non-Conv" sortKeyVal="nonConverted" color="rose" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
             </div>
           </div>
 

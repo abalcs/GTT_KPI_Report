@@ -24,7 +24,7 @@ export const QuartileAnalysisSection: React.FC<QuartileAnalysisSectionProps> = (
   dateEndIdx,
   allDates,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   const [minVolume, setMinVolume] = useState(10);
   const [showIndividualAgents, setShowIndividualAgents] = useState(false);
 

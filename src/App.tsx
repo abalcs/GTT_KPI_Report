@@ -7,6 +7,7 @@ import { DateRangeFilter } from './components/DateRangeFilter';
 import { TrendsView } from './components/TrendsView';
 import { RegionalView } from './components/RegionalView';
 import { InsightsView } from './components/InsightsView';
+import { ChannelPerformanceView } from './components/ChannelPerformanceView';
 import { RecordsView } from './components/RecordsView';
 // RecordNotification import removed - notifications disabled
 import { PresentationGenerator } from './components/PresentationGenerator';
@@ -34,6 +35,8 @@ import {
   analyzeAndUpdateRecords,
   type AllRecords,
 } from './utils/recordsTracker';
+import { parseDate } from './utils/dateParser';
+import { findColumn, COLUMN_PATTERNS } from './utils/columnDetection';
 
 function App() {
   const [files, setFiles] = useState<FileUploadState>({
@@ -51,9 +54,9 @@ function App() {
   const [metrics, setMetrics] = useState<Metrics[]>([]);
   const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData | null>(null);
   const [rawParsedData, setRawParsedData] = useState<RawParsedData | null>(null);
-  const [activeView, setActiveView] = useState<'summary' | 'regional' | 'trends' | 'insights' | 'records'>(() => {
+  const [activeView, setActiveView] = useState<'summary' | 'regional' | 'channels' | 'trends' | 'insights' | 'records'>(() => {
     const saved = localStorage.getItem('gtt-active-view');
-    if (saved === 'summary' || saved === 'regional' || saved === 'trends' || saved === 'insights' || saved === 'records') {
+    if (saved === 'summary' || saved === 'regional' || saved === 'channels' || saved === 'trends' || saved === 'insights' || saved === 'records') {
       return saved;
     }
     return 'summary';
@@ -167,6 +170,7 @@ function App() {
         hotPassRows = rawParsedData!.hotPass;
         bookingsRows = rawParsedData!.bookings;
         nonConvertedRows = rawParsedData!.nonConverted;
+        setShowDataPanel(false);
       }
 
       if (tripsRows.length === 0) {
@@ -328,28 +332,8 @@ function App() {
   const dataDateRange = useMemo(() => {
     if (!rawParsedData?.trips || rawParsedData.trips.length === 0) return null;
 
-    const parseDate = (value: string): Date | null => {
-      if (!value || value.trim() === '') return null;
-      // Try Excel serial number
-      const numValue = parseFloat(value);
-      if (!isNaN(numValue) && numValue > 1000 && numValue < 100000) {
-        const excelEpoch = new Date(1899, 11, 30);
-        return new Date(excelEpoch.getTime() + numValue * 24 * 60 * 60 * 1000);
-      }
-      // Try standard date string
-      const parsed = new Date(value);
-      if (!isNaN(parsed.getTime())) return parsed;
-      return null;
-    };
-
-    // Find date column
-    const keys = Object.keys(rawParsedData.trips[0] || {});
-    const dateCol = keys.find(k =>
-      k.toLowerCase().includes('created date') ||
-      k.toLowerCase().includes('trip: created date') ||
-      k.toLowerCase().includes('date')
-    );
-
+    // Find date column using centralized utility
+    const dateCol = findColumn(rawParsedData.trips[0], COLUMN_PATTERNS.createdDate);
     if (!dateCol) return null;
 
     let minDate: Date | null = null;
@@ -681,6 +665,17 @@ function App() {
                 Regional
               </button>
               <button
+                onClick={() => setActiveView('channels')}
+                disabled={!rawParsedData}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer active:scale-95 ${
+                  activeView === 'channels'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed'
+                }`}
+              >
+                Channels
+              </button>
+              <button
                 onClick={() => setActiveView('trends')}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer active:scale-95 ${
                   activeView === 'trends'
@@ -732,15 +727,20 @@ function App() {
         {/* Summary View */}
         {activeView === 'summary' && metrics.length > 0 && (
           <div className="space-y-4">
-            <AgentAnalytics metrics={metrics} seniors={seniors} />
             <TeamComparison metrics={metrics} teams={teams} seniors={seniors} />
             <ResultsTable metrics={metrics} teams={teams} seniors={seniors} newHires={newHires} />
+            <AgentAnalytics metrics={metrics} seniors={seniors} />
           </div>
         )}
 
         {/* Regional View */}
         {activeView === 'regional' && rawParsedData && (
-          <RegionalView rawData={rawParsedData} seniors={seniors} />
+          <RegionalView rawData={rawParsedData} />
+        )}
+
+        {/* Channel Performance View */}
+        {activeView === 'channels' && rawParsedData && (
+          <ChannelPerformanceView rawData={rawParsedData} seniors={seniors} />
         )}
 
         {/* Trends View */}
@@ -750,7 +750,7 @@ function App() {
 
         {/* Insights View */}
         {activeView === 'insights' && rawParsedData && (
-          <InsightsView rawData={rawParsedData} seniors={seniors} />
+          <InsightsView rawData={rawParsedData} />
         )}
 
         {/* Records View */}

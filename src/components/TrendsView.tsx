@@ -92,17 +92,15 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
   // Valid metrics for filtering stale configs
   const VALID_METRICS: MetricKey[] = [...ALL_PERCENT_METRICS, ...ALL_COUNT_METRICS];
 
-  // Load saved config or use defaults
+  // Load saved config or use defaults - always start with no agents selected
   const [config, setConfig] = useState<ChartConfig>(() => {
     const saved = loadChartConfig();
     if (saved) {
-      // Validate saved agents still exist
-      const validAgents = saved.selectedAgents.filter((a) => allAgents.includes(a));
       // Validate saved metrics are still valid (filter out old 'bk' metric etc.)
       const validMetrics = saved.selectedMetrics.filter((m) => VALID_METRICS.includes(m));
       return {
         ...saved,
-        selectedAgents: validAgents,
+        selectedAgents: [], // Always start with no agents selected
         selectedMetrics: validMetrics.length > 0 ? validMetrics : ['tq'],
         dateRangeEnd: Math.min(saved.dateRangeEnd, allDates.length - 1),
       };
@@ -462,7 +460,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({ timeSeriesData, seniors 
       percentActualMax: percentResult.actualMax,
       countActualMax: countResult.actualMax,
     };
-  }, [chartDataWithTrends, dataKeys, calculateDomain, outlierHandling]);
+  }, [chartDataWithTrends, dataKeys, calculateDomain]);
 
   // Toggle agent selection
   const toggleAgent = useCallback((agentName: string) => {

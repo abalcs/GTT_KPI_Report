@@ -1,6 +1,8 @@
 import type { CSVRow } from './csvParser';
 import type { RawParsedData } from './indexedDB';
 import Anthropic from '@anthropic-ai/sdk';
+import { parseDateTime as parseDateTimeUtil, parseDate as parseDateUtil, DAY_NAMES, TIME_SLOTS } from './dateParser';
+import { findColumn as findColumnUtil } from './columnDetection';
 
 // ============ US Program to Destination Mapping ============
 
@@ -60,83 +62,12 @@ export const destinationBelongsToProgram = (destination: string, program: string
   return destProgram?.toLowerCase() === program.toLowerCase();
 };
 
-// ============ Date/Time Parsing ============
+// ============ Date/Time Parsing & Column Detection ============
+// Using centralized utilities from dateParser.ts and columnDetection.ts
 
-interface ParsedDateTime {
-  date: Date;
-  dayOfWeek: number; // 0 = Sunday, 6 = Saturday
-  dayName: string;
-  hour: number;
-  timeSlot: string; // "Morning", "Afternoon", etc.
-}
-
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const TIME_SLOTS = [
-  { name: 'Early Morning (6-9am)', start: 6, end: 9 },
-  { name: 'Morning (9am-12pm)', start: 9, end: 12 },
-  { name: 'Afternoon (12-3pm)', start: 12, end: 15 },
-  { name: 'Late Afternoon (3-6pm)', start: 15, end: 18 },
-  { name: 'Evening (6-9pm)', start: 18, end: 21 },
-  { name: 'Night (9pm-6am)', start: 21, end: 6 },
-];
-
-const getTimeSlot = (hour: number): string => {
-  for (const slot of TIME_SLOTS) {
-    if (slot.start < slot.end) {
-      if (hour >= slot.start && hour < slot.end) return slot.name;
-    } else {
-      // Night wraps around
-      if (hour >= slot.start || hour < slot.end) return slot.name;
-    }
-  }
-  return 'Unknown';
-};
-
-const parseDateTime = (value: string): ParsedDateTime | null => {
-  if (!value || value.trim() === '') return null;
-
-  // Try Excel serial number with time (includes decimal for time)
-  const numValue = parseFloat(value);
-  if (!isNaN(numValue) && numValue > 1000 && numValue < 100000) {
-    const excelEpoch = new Date(1899, 11, 30);
-    const jsDate = new Date(excelEpoch.getTime() + numValue * 24 * 60 * 60 * 1000);
-    if (!isNaN(jsDate.getTime())) {
-      return {
-        date: jsDate,
-        dayOfWeek: jsDate.getDay(),
-        dayName: DAY_NAMES[jsDate.getDay()],
-        hour: jsDate.getHours(),
-        timeSlot: getTimeSlot(jsDate.getHours()),
-      };
-    }
-  }
-
-  // Try standard date string
-  const parsed = new Date(value);
-  if (!isNaN(parsed.getTime())) {
-    return {
-      date: parsed,
-      dayOfWeek: parsed.getDay(),
-      dayName: DAY_NAMES[parsed.getDay()],
-      hour: parsed.getHours(),
-      timeSlot: getTimeSlot(parsed.getHours()),
-    };
-  }
-
-  return null;
-};
-
-// ============ Column Detection ============
-
-const findColumn = (row: CSVRow, patterns: string[]): string | null => {
-  if (!row) return null;
-  const keys = Object.keys(row);
-  for (const pattern of patterns) {
-    const found = keys.find(k => k.toLowerCase().includes(pattern.toLowerCase()));
-    if (found) return found;
-  }
-  return null;
-};
+const parseDateTime = parseDateTimeUtil;
+const parseDate = parseDateUtil;
+const findColumn = findColumnUtil;
 
 // ============ Analysis Types ============
 
@@ -614,23 +545,6 @@ const getTimeframeRange = (timeframe: RegionalTimeframe): TimeframeRange => {
   }
 };
 
-const parseDate = (value: string): Date | null => {
-  if (!value || value.trim() === '') return null;
-
-  // Try Excel serial number
-  const numValue = parseFloat(value);
-  if (!isNaN(numValue) && numValue > 1000 && numValue < 100000) {
-    const excelEpoch = new Date(1899, 11, 30);
-    return new Date(excelEpoch.getTime() + numValue * 24 * 60 * 60 * 1000);
-  }
-
-  // Try standard date string
-  const parsed = new Date(value);
-  if (!isNaN(parsed.getTime())) return parsed;
-
-  return null;
-};
-
 const isWithinTimeframe = (dateStr: string, startDate: Date | null, endDate?: Date | null): boolean => {
   if (!startDate && !endDate) return true; // 'all' timeframe
   const date = parseDate(dateStr);
@@ -758,7 +672,7 @@ export const analyzeRegionalPerformance = (
 
   // Convert to array and calculate rates
   const allRegions: RegionalPerformance[] = Object.entries(regionStats)
-    .filter(([_, stats]) => stats.trips >= 3) // Minimum threshold for meaningful rate
+    .filter(([, stats]) => stats.trips >= 3) // Minimum threshold for meaningful rate
     .map(([region, stats]) => ({
       region,
       trips: stats.trips,
@@ -874,7 +788,7 @@ export const generateDepartmentRecommendations = (
     .sort((a, b) => b.impactScore - a.impactScore);
 
   // Generate recommendations with priorities based on potential training lift
-  return belowAverage.slice(0, 5).map((r, _index) => {
+  return belowAverage.slice(0, 5).map((r) => {
     let priority: 'high' | 'medium' | 'low';
     // Priority based on potential gain and volume
     if (r.potentialGain >= 10 || (r.trips >= 100 && r.potentialGain >= 5)) {
@@ -1049,7 +963,7 @@ export const analyzeRegionalPerformanceByAgent = (
   return Object.entries(agentStats)
     .map(([agentName, regions]) => {
       const regionPerf: RegionalPerformance[] = Object.entries(regions)
-        .filter(([_, stats]) => stats.trips >= 2) // Lower threshold per agent
+        .filter(([, stats]) => stats.trips >= 2) // Lower threshold per agent
         .map(([region, stats]) => ({
           region,
           trips: stats.trips,
@@ -1353,7 +1267,7 @@ export const analyzeRegionalTrends = (
   for (const period of periods) {
     const regionData = periodRegionStats[period.name];
     const regionPerf: RegionalPerformance[] = Object.entries(regionData)
-      .filter(([_, stats]) => stats.trips >= 3)
+      .filter(([, stats]) => stats.trips >= 3)
       .map(([region, stats]) => ({
         region,
         trips: stats.trips,
@@ -1446,7 +1360,7 @@ export const analyzeRepeatClientPerformance = (
 
   // Convert to array and calculate rates
   const segments: ClientSegmentPerformance[] = Object.entries(segmentStats)
-    .filter(([_, stats]) => stats.trips > 0)
+    .filter(([, stats]) => stats.trips > 0)
     .map(([segment, stats]) => ({
       segment: segment.charAt(0).toUpperCase() + segment.slice(1), // Capitalize
       trips: stats.trips,
@@ -1526,7 +1440,7 @@ export const analyzeRepeatClientPerformanceByAgent = (
   return Object.entries(agentStats)
     .map(([agentName, segments]) => {
       const segmentPerf: ClientSegmentPerformance[] = Object.entries(segments)
-        .filter(([_, stats]) => stats.trips > 0)
+        .filter(([, stats]) => stats.trips > 0)
         .map(([segment, stats]) => ({
           segment: segment.charAt(0).toUpperCase() + segment.slice(1),
           trips: stats.trips,
@@ -1610,7 +1524,7 @@ export const analyzeB2BPerformance = (
 
   // Convert to array and calculate rates
   const segments: ClientSegmentPerformance[] = Object.entries(segmentStats)
-    .filter(([_, stats]) => stats.trips > 0)
+    .filter(([, stats]) => stats.trips > 0)
     .map(([segment, stats]) => ({
       segment: segment.toUpperCase(), // B2B, B2C
       trips: stats.trips,
@@ -1690,7 +1604,7 @@ export const analyzeB2BPerformanceByAgent = (
   return Object.entries(agentStats)
     .map(([agentName, segments]) => {
       const segmentPerf: ClientSegmentPerformance[] = Object.entries(segments)
-        .filter(([_, stats]) => stats.trips > 0)
+        .filter(([, stats]) => stats.trips > 0)
         .map(([segment, stats]) => ({
           segment: segment.toUpperCase(),
           trips: stats.trips,

@@ -28,6 +28,31 @@ const formatPercent = (value: number): string => {
   return `${value.toFixed(1)}%`;
 };
 
+interface SortIconProps {
+  column: SortColumn;
+  sortColumn: SortColumn;
+  sortDirection: SortDirection;
+}
+
+const SortIcon: React.FC<SortIconProps> = ({ column, sortColumn, sortDirection }) => {
+  if (sortColumn !== column) {
+    return (
+      <svg className="w-4 h-4 ml-1 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+      </svg>
+    );
+  }
+  return sortDirection === 'desc' ? (
+    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  ) : (
+    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+    </svg>
+  );
+};
+
 export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seniors, newHires }) => {
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -190,25 +215,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
     }
 
     return parts.join(' ') + ' Total';
-  };
-
-  const SortIcon = ({ column }: { column: SortColumn }) => {
-    if (sortColumn !== column) {
-      return (
-        <svg className="w-4 h-4 ml-1 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-        </svg>
-      );
-    }
-    return sortDirection === 'desc' ? (
-      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-      </svg>
-    ) : (
-      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-      </svg>
-    );
   };
 
   if (metrics.length === 0) {
@@ -392,7 +398,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
               >
                 <div className="flex items-center justify-center">
                   Trips
-                  <SortIcon column="trips" />
+                  <SortIcon column="trips" sortColumn={sortColumn} sortDirection={sortDirection} />
                 </div>
               </th>
               <th
@@ -401,7 +407,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
               >
                 <div className="flex items-center justify-center">
                   Quotes
-                  <SortIcon column="quotes" />
+                  <SortIcon column="quotes" sortColumn={sortColumn} sortDirection={sortDirection} />
                 </div>
               </th>
               <th
@@ -410,7 +416,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
               >
                 <div className="flex items-center justify-center">
                   Passthroughs
-                  <SortIcon column="passthroughs" />
+                  <SortIcon column="passthroughs" sortColumn={sortColumn} sortDirection={sortDirection} />
                 </div>
               </th>
               {columnVisibility.repeatTrips && (
@@ -420,7 +426,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
                 >
                   <div className="flex items-center justify-center">
                     Repeat Trips
-                    <SortIcon column="repeatTrips" />
+                    <SortIcon column="repeatTrips" sortColumn={sortColumn} sortDirection={sortDirection} />
                   </div>
                 </th>
               )}
@@ -431,7 +437,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
                 >
                   <div className="flex items-center justify-center">
                     Repeat TP
-                    <SortIcon column="repeatPassthroughs" />
+                    <SortIcon column="repeatPassthroughs" sortColumn={sortColumn} sortDirection={sortDirection} />
                   </div>
                 </th>
               )}
@@ -442,7 +448,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
                 >
                   <div className="flex items-center justify-center">
                     Repeat T&gt;P %
-                    <SortIcon column="repeatTpRate" />
+                    <SortIcon column="repeatTpRate" sortColumn={sortColumn} sortDirection={sortDirection} />
                   </div>
                 </th>
               )}
@@ -453,7 +459,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
                 >
                   <div className="flex items-center justify-center">
                     B2B Trips
-                    <SortIcon column="b2bTrips" />
+                    <SortIcon column="b2bTrips" sortColumn={sortColumn} sortDirection={sortDirection} />
                   </div>
                 </th>
               )}
@@ -464,7 +470,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
                 >
                   <div className="flex items-center justify-center">
                     B2B TP
-                    <SortIcon column="b2bPassthroughs" />
+                    <SortIcon column="b2bPassthroughs" sortColumn={sortColumn} sortDirection={sortDirection} />
                   </div>
                 </th>
               )}
@@ -475,7 +481,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
                 >
                   <div className="flex items-center justify-center">
                     B2B T&gt;P %
-                    <SortIcon column="b2bTpRate" />
+                    <SortIcon column="b2bTpRate" sortColumn={sortColumn} sortDirection={sortDirection} />
                   </div>
                 </th>
               )}
@@ -485,7 +491,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
               >
                 <div className="flex items-center justify-center">
                   T&gt;P
-                  <SortIcon column="passthroughsFromTrips" />
+                  <SortIcon column="passthroughsFromTrips" sortColumn={sortColumn} sortDirection={sortDirection} />
                 </div>
               </th>
               <th
@@ -494,7 +500,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
               >
                 <div className="flex items-center justify-center">
                   T&gt;Q
-                  <SortIcon column="quotesFromTrips" />
+                  <SortIcon column="quotesFromTrips" sortColumn={sortColumn} sortDirection={sortDirection} />
                 </div>
               </th>
               <th
@@ -503,7 +509,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
               >
                 <div className="flex items-center justify-center">
                   P&gt;Q
-                  <SortIcon column="quotesFromPassthroughs" />
+                  <SortIcon column="quotesFromPassthroughs" sortColumn={sortColumn} sortDirection={sortDirection} />
                 </div>
               </th>
               <th
@@ -512,7 +518,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
               >
                 <div className="flex items-center justify-center">
                   Hot Pass
-                  <SortIcon column="hotPassRate" />
+                  <SortIcon column="hotPassRate" sortColumn={sortColumn} sortDirection={sortDirection} />
                 </div>
               </th>
               <th
@@ -521,7 +527,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
               >
                 <div className="flex items-center justify-center">
                   Bookings
-                  <SortIcon column="bookings" />
+                  <SortIcon column="bookings" sortColumn={sortColumn} sortDirection={sortDirection} />
                 </div>
               </th>
               <th
@@ -530,7 +536,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
               >
                 <div className="flex items-center justify-center">
                   % Non-Conv
-                  <SortIcon column="nonConvertedRate" />
+                  <SortIcon column="nonConvertedRate" sortColumn={sortColumn} sortDirection={sortDirection} />
                 </div>
               </th>
             </tr>

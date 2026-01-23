@@ -1,6 +1,8 @@
 import type { Metrics } from '../types';
 import type { CSVRow } from './csvParser';
 import type { AgentTimeSeries, DailyAgentMetrics, TimeSeriesData } from '../types';
+import { formatDateString } from './dateParser';
+import { findColumn } from './columnDetection';
 
 // Optimized single-pass counting with date support
 export interface CountResult {
@@ -8,46 +10,8 @@ export interface CountResult {
   byDate: Map<string, Map<string, number>>;
 }
 
-const parseDate = (value: string): string | null => {
-  if (!value || value.trim() === '') return null;
-
-  // Try parsing as Excel serial number
-  const numValue = parseFloat(value);
-  if (!isNaN(numValue) && numValue > 1000 && numValue < 100000) {
-    const excelEpoch = new Date(1899, 11, 30);
-    const jsDate = new Date(excelEpoch.getTime() + numValue * 24 * 60 * 60 * 1000);
-    if (!isNaN(jsDate.getTime())) {
-      return formatDate(jsDate);
-    }
-  }
-
-  // Try parsing as standard date string
-  const parsed = new Date(value);
-  if (!isNaN(parsed.getTime())) {
-    return formatDate(parsed);
-  }
-
-  // Try MM/DD/YYYY format
-  const parts = value.split('/');
-  if (parts.length === 3) {
-    const month = parseInt(parts[0], 10) - 1;
-    const day = parseInt(parts[1], 10);
-    const year = parseInt(parts[2], 10);
-    const date = new Date(year, month, day);
-    if (!isNaN(date.getTime())) {
-      return formatDate(date);
-    }
-  }
-
-  return null;
-};
-
-const formatDate = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+// Re-export parseDate for backwards compatibility, using centralized utility
+const parseDate = (value: string): string | null => formatDateString(value);
 
 // Find agent column - optimized with early return
 export const findAgentColumn = (row: CSVRow): string | null => {
@@ -83,16 +47,8 @@ export const findAgentColumn = (row: CSVRow): string | null => {
   return keys[0] || null;
 };
 
-// Find date column
-export const findDateColumn = (row: CSVRow, patterns: string[]): string | null => {
-  if (!row) return null;
-  const keys = Object.keys(row);
-  for (const pattern of patterns) {
-    const found = keys.find(k => k.toLowerCase().includes(pattern.toLowerCase()));
-    if (found) return found;
-  }
-  return null;
-};
+// Find date column - delegates to centralized utility
+export const findDateColumn = (row: CSVRow, patterns: string[]): string | null => findColumn(row, patterns);
 
 // Parse date string to comparable integer (YYYYMMDD format) to avoid timezone issues
 const dateToInt = (dateStr: string): number => {
@@ -655,16 +611,6 @@ export const buildTimeSeriesOptimized = (
     seniorDaily: calcGroupDaily(seniorAgents),
     nonSeniorDaily: calcGroupDaily(nonSeniorAgents),
   };
-};
-
-// Helper to find a column case-insensitively
-const findColumn = (row: CSVRow, possibleNames: string[]): string | null => {
-  const keys = Object.keys(row);
-  for (const name of possibleNames) {
-    const found = keys.find(k => k.toLowerCase().includes(name.toLowerCase()));
-    if (found) return found;
-  }
-  return null;
 };
 
 // Calculate daily averages for a specific segment (repeat clients or B2B)

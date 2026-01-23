@@ -19,7 +19,6 @@ import { loadAnthropicApiKey } from '../utils/storage';
 
 interface RegionalViewProps {
   rawData: RawParsedData;
-  seniors: string[];
 }
 
 type SortColumn = 'region' | 'tpRate' | 'hotPassRate' | 'pqRate' | 'trips' | 'passthroughs';
@@ -27,7 +26,7 @@ type SortDirection = 'asc' | 'desc';
 
 type RecommendationType = 'tp' | 'pq';
 
-export const RegionalView: React.FC<RegionalViewProps> = ({ rawData, seniors: _seniors }) => {
+export const RegionalView: React.FC<RegionalViewProps> = ({ rawData }) => {
   const [regionalTimeframe, setRegionalTimeframe] = useState<RegionalTimeframe>('all');
   const [selectedAgentForRegions, setSelectedAgentForRegions] = useState<string>('');
   const [sortColumn, setSortColumn] = useState<SortColumn>('tpRate');
