@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface FileUploadProps {
   label: string;
@@ -61,6 +62,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   color,
 }) => {
   const colors = colorClasses[color];
+  const { isAudley } = useTheme();
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
@@ -111,9 +113,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       <div className="flex-1 min-w-0">
         <h3 className={`text-sm font-medium ${colors.text}`}>{label}</h3>
         {file ? (
-          <p className="text-xs text-slate-400 truncate">{file.name}</p>
+          <p className={`text-xs truncate ${isAudley ? 'text-slate-600' : 'text-slate-400'}`}>{file.name}</p>
         ) : (
-          <p className="text-xs text-slate-500">Click or drop file</p>
+          <p className={`text-xs ${isAudley ? 'text-slate-500' : 'text-slate-500'}`}>Click or drop file</p>
         )}
       </div>
 
@@ -123,7 +125,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             e.stopPropagation();
             onFileSelect(null);
           }}
-          className="flex-shrink-0 p-1 text-slate-400 hover:text-red-400 transition-colors"
+          className={`flex-shrink-0 p-1 transition-colors ${
+            isAudley ? 'text-slate-500 hover:text-red-600' : 'text-slate-400 hover:text-red-400'
+          }`}
           title="Remove file"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

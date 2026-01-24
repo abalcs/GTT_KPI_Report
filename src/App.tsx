@@ -12,6 +12,9 @@ import { RecordsView } from './components/RecordsView';
 // RecordNotification import removed - notifications disabled
 import { PresentationGenerator } from './components/PresentationGenerator';
 import { AgentAnalytics } from './components/AgentAnalytics';
+import { ThemeToggle } from './components/ThemeToggle';
+import { useTheme } from './contexts/ThemeContext';
+import audleyLogo from './assets/audley-logo.png';
 import type { Team, Metrics, FileUploadState, TimeSeriesData } from './types';
 import type { CSVRow } from './utils/csvParser';
 import { loadTeams, saveTeams, loadSeniors, saveSeniors, loadNewHires, saveNewHires, loadMetrics, saveMetrics, clearMetrics, loadTimeSeriesData, saveTimeSeriesData, clearTimeSeriesData } from './utils/storage';
@@ -39,6 +42,8 @@ import { parseDate } from './utils/dateParser';
 import { findColumn, COLUMN_PATTERNS } from './utils/columnDetection';
 
 function App() {
+  const { isAudley } = useTheme();
+
   const [files, setFiles] = useState<FileUploadState>({
     passthroughs: null,
     trips: null,
@@ -363,13 +368,36 @@ function App() {
   }, [rawParsedData?.trips]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className={`min-h-screen transition-colors duration-300 ${
+      isAudley
+        ? 'bg-gradient-to-br from-[#e6f3fb] via-white to-[#f0f7fc]'
+        : 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'
+    }`}>
+      {/* Audley Header Bar - Blue and Teal gradient */}
+      {isAudley && (
+        <div className="h-1.5 w-full bg-gradient-to-r from-[#007bc7] via-[#4d726d] to-[#007bc7]" />
+      )}
+
+      <div className={`max-w-7xl mx-auto px-4 ${isAudley ? 'py-4' : 'py-6'}`}>
         {/* Header */}
         <header className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              Global Travel Hub
+          <div className="flex items-center gap-4">
+            {/* Audley Logo when in Audley theme */}
+            {isAudley && (
+              <div className="flex items-center gap-3 pr-4 border-r border-[#4d726d]/30">
+                <img
+                  src={audleyLogo}
+                  alt="Audley Travel"
+                  className="h-14 w-auto mix-blend-multiply"
+                />
+              </div>
+            )}
+            <div>
+              <h1 className={`text-2xl font-bold flex items-center gap-2 transition-colors ${
+                isAudley ? 'text-[#4d726d]' : 'text-white'
+              }`}>
+Global Travel Hub
+              {!isAudley && (
               <svg className="w-7 h-7" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <radialGradient id="globeSphere" cx="30%" cy="30%" r="65%" fx="25%" fy="25%">
@@ -417,24 +445,38 @@ function App() {
                 <circle cx="50" cy="50" r="47" fill="url(#globeAtmo)"/>
                 <ellipse cx="32" cy="28" rx="16" ry="12" fill="url(#globeShine)"/>
               </svg>
+              )}
             </h1>
-            <p className="text-sm text-slate-400">Analyze agent performance metrics</p>
-          </div>
-          {metrics.length > 0 ? (
-            <div className="flex items-center gap-2">
-              <PresentationGenerator metrics={metrics} seniors={seniors} teams={teams} />
-              <button
-                onClick={handleClearData}
-                className="px-3 py-2 text-sm text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer active:scale-95"
-              >
-                Clear All
-              </button>
+            <p className={`text-sm transition-colors ${isAudley ? 'text-[#4d726d]/80' : 'text-slate-400'}`}>
+              Analyze agent performance metrics
+            </p>
             </div>
-          ) : canAnalyze && (
+          </div>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            {metrics.length > 0 ? (
+              <div className="flex items-center gap-2">
+                <PresentationGenerator metrics={metrics} seniors={seniors} teams={teams} />
+                <button
+                  onClick={handleClearData}
+                  className={`px-3 py-2 text-sm rounded-lg transition-all cursor-pointer active:scale-95 ${
+                    isAudley
+                      ? 'text-slate-500 hover:text-red-600 hover:bg-red-50'
+                      : 'text-slate-400 hover:text-red-400 hover:bg-red-500/10'
+                  }`}
+                >
+                  Clear All
+                </button>
+              </div>
+            ) : canAnalyze && (
             <button
               onClick={processFiles}
               disabled={isProcessing}
-              className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+              className={`px-4 py-2 text-white rounded-lg font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-95 ${
+                isAudley
+                  ? 'bg-gradient-to-r from-[#4d726d] to-[#007bc7] hover:from-[#3d5c58] hover:to-[#005a94] shadow-md shadow-[#4d726d]/20'
+                  : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'
+              }`}
             >
               {isProcessing ? (
                 <>
@@ -453,22 +495,33 @@ function App() {
                 </>
               )}
             </button>
-          )}
+            )}
+          </div>
         </header>
 
         {/* Data Source Panel - Collapsible */}
-        <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700/50 mb-4 overflow-hidden">
+        <div className={`backdrop-blur rounded-xl border mb-4 overflow-hidden transition-colors ${
+          isAudley
+            ? 'bg-white border-[#007bc7]/20 shadow-sm shadow-[#007bc7]/5'
+            : 'bg-slate-800/50 border-slate-700/50'
+        }`}>
           <button
             onClick={() => setShowDataPanel(!showDataPanel)}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-700/30 transition-all cursor-pointer active:scale-[0.99]"
+            className={`w-full px-4 py-3 flex items-center justify-between transition-all cursor-pointer active:scale-[0.99] ${
+              isAudley ? 'hover:bg-[#e6f3fb]/50' : 'hover:bg-slate-700/30'
+            }`}
           >
             <div className="flex items-center gap-3">
-              <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-5 h-5 ${isAudley ? 'text-[#007bc7]' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              <span className="font-medium text-white">Data Source</span>
+              <span className={`font-medium ${isAudley ? 'text-[#313131]' : 'text-white'}`}>Data Source</span>
               {hasStoredData && !showDataPanel && (
-                <span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-xs flex items-center gap-1">
+                <span className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${
+                  isAudley
+                    ? 'bg-[#007bc7]/10 text-[#007bc7] border border-[#007bc7]/20'
+                    : 'bg-green-500/20 text-green-400'
+                }`}>
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
@@ -479,13 +532,17 @@ function App() {
                 </span>
               )}
               {!hasStoredData && uploadedCount > 0 && (
-                <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-xs">
+                <span className={`px-2 py-0.5 rounded text-xs ${
+                  isAudley ? 'bg-[#007bc7]/10 text-[#007bc7]' : 'bg-blue-500/20 text-blue-400'
+                }`}>
                   {uploadedCount}/6 files
                 </span>
               )}
             </div>
             <svg
-              className={`w-5 h-5 text-slate-400 transition-transform ${showDataPanel ? 'rotate-180' : ''}`}
+              className={`w-5 h-5 transition-transform ${showDataPanel ? 'rotate-180' : ''} ${
+                isAudley ? 'text-[#007bc7]' : 'text-slate-400'
+              }`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -500,25 +557,33 @@ function App() {
             }`}
           >
             <div className="overflow-hidden">
-              <div className="px-4 pb-4 border-t border-slate-700/50 pt-4">
+              <div className={`px-4 pb-4 border-t pt-4 ${
+                isAudley ? 'border-[#4d726d]/10' : 'border-slate-700/50'
+              }`}>
               {/* Quick Load Button for stored data */}
               {hasStoredData && (
-                <div className="mb-4 bg-slate-700/30 rounded-lg p-4">
+                <div className={`mb-4 rounded-lg p-4 ${
+                  isAudley ? 'bg-[#4d726d]/5 border border-[#4d726d]/20' : 'bg-slate-700/30'
+                }`}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className={`w-5 h-5 ${isAudley ? 'text-[#4d726d]' : 'text-green-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                       </svg>
-                      <span className="text-white font-medium">Stored Dataset</span>
+                      <span className={`font-medium ${isAudley ? 'text-[#4d726d]' : 'text-white'}`}>Stored Dataset</span>
                       {dataDateRange && (
-                        <span className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-xs">
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          isAudley ? 'bg-[#4d726d]/10 text-[#4d726d]' : 'bg-green-500/20 text-green-400'
+                        }`}>
                           {dataDateRange.start} — {dataDateRange.end}
                         </span>
                       )}
                     </div>
                     <button
                       onClick={handleClearStoredData}
-                      className="text-xs text-slate-400 hover:text-red-400 transition-all px-2 py-1 hover:bg-red-500/10 rounded cursor-pointer active:scale-95"
+                      className={`text-xs transition-all px-2 py-1 rounded cursor-pointer active:scale-95 ${
+                        isAudley ? 'text-slate-500 hover:text-red-600 hover:bg-red-50' : 'text-slate-400 hover:text-red-400 hover:bg-red-500/10'
+                      }`}
                     >
                       Clear Stored Data
                     </button>
@@ -526,14 +591,18 @@ function App() {
                   <button
                     onClick={processFiles}
                     disabled={isProcessing}
-                    className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-[0.98]"
+                    className={`w-full px-4 py-3 text-white rounded-lg font-medium transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-[0.98] ${
+                      isAudley
+                        ? 'bg-gradient-to-r from-[#4d726d] to-[#007bc7] hover:from-[#3d5c58] hover:to-[#005a94] shadow-md shadow-[#4d726d]/20'
+                        : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'
+                    }`}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                     <span>Reload & Analyze Dataset</span>
                   </button>
-                  <p className="text-xs text-slate-500 text-center mt-2">
+                  <p className={`text-xs text-center mt-2 ${isAudley ? 'text-slate-600' : 'text-slate-500'}`}>
                     Or upload new files below to replace the stored data
                   </p>
                 </div>
@@ -589,7 +658,11 @@ function App() {
         </div>
 
         {/* Controls Bar */}
-        <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700/50 px-4 py-3 mb-4">
+        <div className={`backdrop-blur rounded-xl border px-4 py-3 mb-4 ${
+          isAudley
+            ? 'bg-white border-[#007bc7]/20 shadow-sm'
+            : 'bg-slate-800/50 border-slate-700/50'
+        }`}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <DateRangeFilter
               startDate={startDate}
@@ -642,70 +715,42 @@ function App() {
         {/* View Toggle & Config */}
         {metrics.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-            <div className="bg-slate-800/50 rounded-lg p-1 flex gap-1">
-              <button
-                onClick={() => setActiveView('summary')}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer active:scale-95 ${
-                  activeView === 'summary'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                }`}
-              >
-                Summary
-              </button>
-              <button
-                onClick={() => setActiveView('regional')}
-                disabled={!rawParsedData}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer active:scale-95 ${
-                  activeView === 'regional'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed'
-                }`}
-              >
-                Regional
-              </button>
-              <button
-                onClick={() => setActiveView('channels')}
-                disabled={!rawParsedData}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer active:scale-95 ${
-                  activeView === 'channels'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed'
-                }`}
-              >
-                Channels
-              </button>
-              <button
-                onClick={() => setActiveView('trends')}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer active:scale-95 ${
-                  activeView === 'trends'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                }`}
-              >
-                Trends
-              </button>
-              <button
-                onClick={() => setActiveView('insights')}
-                disabled={!rawParsedData}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer active:scale-95 ${
-                  activeView === 'insights'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed'
-                }`}
-              >
-                Insights
-              </button>
-              <button
-                onClick={() => setActiveView('records')}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer active:scale-95 ${
-                  activeView === 'records'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                }`}
-              >
-                Records
-              </button>
+            <div className={`rounded-lg p-1 flex gap-1 transition-colors ${
+              isAudley
+                ? 'bg-white border border-[#4d726d]/20 shadow-sm'
+                : 'bg-slate-800/50'
+            }`}>
+              {(['summary', 'regional', 'channels', 'trends', 'insights', 'records'] as const).map((view) => {
+                const isDisabled = (view === 'regional' || view === 'channels' || view === 'insights') && !rawParsedData;
+                const isActive = activeView === view;
+                const labels = {
+                  summary: 'Summary',
+                  regional: 'Regional',
+                  channels: 'Channels',
+                  trends: 'Trends',
+                  insights: 'Insights',
+                  records: 'Records'
+                };
+
+                return (
+                  <button
+                    key={view}
+                    onClick={() => setActiveView(view)}
+                    disabled={isDisabled}
+                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer active:scale-95 ${
+                      isActive
+                        ? isAudley
+                          ? 'bg-gradient-to-r from-[#4d726d] to-[#007bc7] text-white shadow-sm'
+                          : 'bg-indigo-600 text-white'
+                        : isAudley
+                          ? 'text-[#4d726d] hover:text-[#007bc7] hover:bg-[#e6f3fb] disabled:opacity-50 disabled:cursor-not-allowed'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed'
+                    }`}
+                  >
+                    {labels[view]}
+                  </button>
+                );
+              })}
             </div>
 
             {activeView === 'summary' && (

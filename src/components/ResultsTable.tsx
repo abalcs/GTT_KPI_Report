@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { Metrics, Team } from '../types';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ResultsTableProps {
   metrics: Metrics[];
@@ -54,6 +55,7 @@ const SortIcon: React.FC<SortIconProps> = ({ column, sortColumn, sortDirection }
 };
 
 export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seniors, newHires }) => {
+  const { isAudley } = useTheme();
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [selectedTeam, setSelectedTeam] = useState<string>('all');
@@ -233,17 +235,25 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
 
   return (
     <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-      <div className="px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-white">KPI Results</h2>
+      <div className={`px-6 py-4 flex items-center justify-between text-white ${
+        isAudley
+          ? 'bg-gradient-to-r from-[#4d726d] to-[#5d8a84]'
+          : 'bg-gradient-to-r from-indigo-600 to-purple-600'
+      }`}>
+        <span className="font-bold text-lg">KPI Results</span>
 
         <div className="flex items-center gap-4">
           {(seniors.length > 0 || newHires.length > 0) && (
             <div className="flex items-center gap-2">
-              <label className="text-white text-sm">Filter:</label>
+              <label className={`text-sm font-medium ${isAudley ? 'text-white' : 'text-white'}`}>Filter:</label>
               <select
                 value={seniorFilter}
                 onChange={(e) => setSeniorFilter(e.target.value as SeniorFilter)}
-                className="px-3 py-1.5 rounded-lg text-sm bg-white/20 text-white border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer"
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 cursor-pointer ${
+                  isAudley
+                    ? 'bg-white text-[#4d726d] border border-white focus:ring-white/50'
+                    : 'bg-white/20 text-white border border-white/30 focus:ring-white/50'
+                }`}
               >
                 <option value="all" className="text-gray-800">All Agents</option>
                 {seniors.length > 0 && (
@@ -261,11 +271,15 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
 
           {teams.length > 0 && (
             <div className="flex items-center gap-2">
-              <label className="text-white text-sm">Team:</label>
+              <label className={`text-sm font-medium ${isAudley ? 'text-white' : 'text-white'}`}>Team:</label>
               <select
                 value={selectedTeam}
                 onChange={(e) => setSelectedTeam(e.target.value)}
-                className="px-3 py-1.5 rounded-lg text-sm bg-white/20 text-white border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer"
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 cursor-pointer ${
+                  isAudley
+                    ? 'bg-white text-[#4d726d] border border-white focus:ring-white/50'
+                    : 'bg-white/20 text-white border border-white/30 focus:ring-white/50'
+                }`}
               >
                 <option value="all" className="text-gray-800">All Teams</option>
                 {teams.map(team => (
@@ -281,8 +295,10 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ metrics, teams, seni
             onClick={() => setShowColumnSettings(!showColumnSettings)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer active:scale-95 ${
               showColumnSettings
-                ? 'bg-white text-indigo-600'
-                : 'bg-white/20 text-white border border-white/30 hover:bg-white/30'
+                ? isAudley ? 'bg-white text-[#4d726d]' : 'bg-white text-indigo-600'
+                : isAudley
+                  ? 'bg-white/90 text-[#4d726d] border border-white hover:bg-white'
+                  : 'bg-white/20 text-white border border-white/30 hover:bg-white/30'
             }`}
           >
             <div className="flex items-center gap-1.5">

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface DateRangeFilterProps {
   startDate: string;
@@ -16,14 +17,15 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   onClear,
 }) => {
   const hasFilter = startDate || endDate;
+  const { isAudley } = useTheme();
 
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex items-center gap-2">
-        <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`w-4 h-4 ${isAudley ? 'text-[#4d726d]' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
-        <span className="text-sm text-slate-400">Date Range:</span>
+        <span className={`text-sm ${isAudley ? 'text-[#4d726d]' : 'text-slate-400'}`}>Date Range:</span>
       </div>
 
       <div className="flex items-center gap-2">
@@ -31,15 +33,23 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
           type="date"
           value={startDate}
           onChange={(e) => onStartDateChange(e.target.value)}
-          className="px-3 py-1.5 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all [color-scheme:dark]"
+          className={`px-3 py-1.5 border rounded-lg text-sm transition-all ${
+            isAudley
+              ? 'bg-white border-[#4d726d]/30 text-[#4d726d] focus:ring-2 focus:ring-[#4d726d]/50 focus:border-[#4d726d]'
+              : 'bg-slate-800 border-slate-600 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 [color-scheme:dark]'
+          }`}
           title="Start date (inclusive)"
         />
-        <span className="text-slate-500">to</span>
+        <span className={isAudley ? 'text-[#4d726d]/70' : 'text-slate-500'}>to</span>
         <input
           type="date"
           value={endDate}
           onChange={(e) => onEndDateChange(e.target.value)}
-          className="px-3 py-1.5 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all [color-scheme:dark]"
+          className={`px-3 py-1.5 border rounded-lg text-sm transition-all ${
+            isAudley
+              ? 'bg-white border-[#4d726d]/30 text-[#4d726d] focus:ring-2 focus:ring-[#4d726d]/50 focus:border-[#4d726d]'
+              : 'bg-slate-800 border-slate-600 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 [color-scheme:dark]'
+          }`}
           title="End date (inclusive)"
         />
       </div>
@@ -47,7 +57,9 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
       {hasFilter && (
         <button
           onClick={onClear}
-          className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+          className={`p-1.5 rounded-lg transition-colors ${
+            isAudley ? 'text-slate-500 hover:text-red-600 hover:bg-red-50' : 'text-slate-400 hover:text-red-400 hover:bg-red-500/10'
+          }`}
           title="Clear date filter"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,7 +68,7 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         </button>
       )}
 
-      <span className="text-xs text-slate-500 hidden sm:inline">
+      <span className={`text-xs hidden sm:inline ${isAudley ? 'text-slate-600' : 'text-slate-500'}`}>
         (both dates inclusive)
       </span>
     </div>

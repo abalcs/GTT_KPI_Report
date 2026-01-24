@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import type { Metrics, Team } from '../types';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface TeamComparisonProps {
   metrics: Metrics[];
@@ -73,6 +74,7 @@ const SortButton: React.FC<SortButtonProps> = ({ label, sortKeyVal, color = 'gra
 };
 
 export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, seniors }) => {
+  const { isAudley } = useTheme();
   const [isOpen, setIsOpen] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>('trips');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -220,7 +222,11 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
     <div className="bg-white rounded-xl shadow-lg overflow-hidden">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-6 py-4 flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition-all"
+        className={`w-full px-6 py-4 flex items-center justify-between text-white transition-all ${
+          isAudley
+            ? 'bg-gradient-to-r from-[#4d726d] to-[#5d8a84] hover:from-[#3d5c58] hover:to-[#4d7a74]'
+            : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600'
+        }`}
       >
         <div className="flex items-center gap-3">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -256,7 +262,9 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                 <button
                   onClick={() => setViewMode('table')}
                   className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
-                    viewMode === 'table' ? 'bg-amber-500 text-white' : 'text-gray-600 hover:bg-gray-100'
+                    viewMode === 'table'
+                      ? isAudley ? 'bg-[#4d726d] text-white' : 'bg-amber-500 text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   Table
@@ -264,7 +272,9 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                 <button
                   onClick={() => setViewMode('cards')}
                   className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
-                    viewMode === 'cards' ? 'bg-amber-500 text-white' : 'text-gray-600 hover:bg-gray-100'
+                    viewMode === 'cards'
+                      ? isAudley ? 'bg-[#4d726d] text-white' : 'bg-amber-500 text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   Cards
@@ -303,13 +313,17 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                           key={team.id}
                           className={`px-4 py-3 text-center text-sm font-semibold border-b min-w-[120px] ${
                             idx === 0 && sortKey !== 'name'
-                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              ? isAudley
+                                ? 'bg-[#4d726d]/10 text-[#4d726d] border-[#4d726d]/20'
+                                : 'bg-amber-50 text-amber-800 border-amber-200'
                               : 'text-gray-600 border-gray-200'
                           }`}
                         >
                           <div>{team.name}</div>
                           {idx === 0 && sortKey !== 'name' && (
-                            <span className="inline-block mt-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">#1</span>
+                            <span className={`inline-block mt-1 text-white text-xs px-1.5 py-0.5 rounded-full ${
+                              isAudley ? 'bg-[#4d726d]' : 'bg-amber-500'
+                            }`}>#1</span>
                           )}
                         </th>
                       ))}
@@ -333,7 +347,9 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                                 key={team.id}
                                 className={`px-4 py-3 text-center text-sm border-b ${
                                   colIdx === 0 && sortKey !== 'name'
-                                    ? 'bg-amber-50/50 border-amber-100'
+                                    ? isAudley
+                                      ? 'bg-[#4d726d]/5 border-[#4d726d]/10'
+                                      : 'bg-amber-50/50 border-amber-100'
                                     : 'border-gray-100'
                                 } ${colorClass}`}
                               >
@@ -363,12 +379,16 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                     key={team.id}
                     className={`relative p-5 rounded-xl border-2 ${
                       idx === 0 && sortKey !== 'name'
-                        ? 'border-amber-400 bg-amber-50'
+                        ? isAudley
+                          ? 'border-[#4d726d] bg-[#4d726d]/10'
+                          : 'border-amber-400 bg-amber-50'
                         : 'border-gray-200 bg-gray-50'
                     }`}
                   >
                     {idx === 0 && sortKey !== 'name' && (
-                      <div className="absolute -top-2 -right-2 bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                      <div className={`absolute -top-2 -right-2 text-white text-xs font-bold px-2 py-1 rounded-full ${
+                        isAudley ? 'bg-[#4d726d]' : 'bg-amber-500'
+                      }`}>
                         #1
                       </div>
                     )}
@@ -431,7 +451,7 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                         <div className="text-xs text-gray-500">P&gt;Q</div>
                       </div>
                       <div>
-                        <div className="text-lg font-bold text-orange-600">{formatPercent(team.hotPass)}</div>
+                        <div className={`text-lg font-bold ${isAudley ? 'text-[#4d726d]' : 'text-orange-600'}`}>{formatPercent(team.hotPass)}</div>
                         <div className="text-xs text-gray-500">Hot Pass</div>
                       </div>
                       <div>
@@ -453,7 +473,7 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
           {hasSeniors && viewMode === 'table' && (
             <div>
               <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                <svg className="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 24 24">
+                <svg className={`w-5 h-5 ${isAudley ? 'text-[#4d726d]' : 'text-amber-500'}`} fill="currentColor" viewBox="0 0 24 24">
                   <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                 </svg>
                 Senior vs Non-Senior Comparison
@@ -465,9 +485,13 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 border-b border-gray-200">
                         Metric
                       </th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-amber-800 border-b border-amber-200 bg-amber-50 min-w-[120px]">
+                      <th className={`px-4 py-3 text-center text-sm font-semibold border-b min-w-[120px] ${
+                        isAudley
+                          ? 'text-[#4d726d] border-[#4d726d]/20 bg-[#4d726d]/10'
+                          : 'text-amber-800 border-amber-200 bg-amber-50'
+                      }`}>
                         <div className="flex items-center justify-center gap-1">
-                          <svg className="w-4 h-4 text-amber-600" fill="currentColor" viewBox="0 0 24 24">
+                          <svg className={`w-4 h-4 ${isAudley ? 'text-[#4d726d]' : 'text-amber-600'}`} fill="currentColor" viewBox="0 0 24 24">
                             <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                           </svg>
                           Seniors
@@ -501,7 +525,11 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                           <td className="px-4 py-2.5 text-sm font-medium text-gray-700 border-b border-gray-100">
                             {row.label}
                           </td>
-                          <td className="px-4 py-2.5 text-center text-sm border-b border-amber-100 bg-amber-50/50 font-medium">
+                          <td className={`px-4 py-2.5 text-center text-sm border-b font-medium ${
+                            isAudley
+                              ? 'border-[#4d726d]/10 bg-[#4d726d]/5'
+                              : 'border-amber-100 bg-amber-50/50'
+                          }`}>
                             {row.format(row.senior)}
                           </td>
                           <td className="px-4 py-2.5 text-center text-sm border-b border-gray-100">
@@ -530,21 +558,25 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
           {hasSeniors && viewMode === 'cards' && (
             <div>
               <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                <svg className="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 24 24">
+                <svg className={`w-5 h-5 ${isAudley ? 'text-[#4d726d]' : 'text-amber-500'}`} fill="currentColor" viewBox="0 0 24 24">
                   <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                 </svg>
                 Senior vs Non-Senior Comparison
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Seniors Card */}
-                <div className="relative p-5 rounded-xl border-2 border-amber-400 bg-amber-50">
+                <div className={`relative p-5 rounded-xl border-2 ${
+                  isAudley
+                    ? 'border-[#4d726d] bg-[#4d726d]/10'
+                    : 'border-amber-400 bg-amber-50'
+                }`}>
                   <div className="flex items-center gap-2 mb-1">
-                    <svg className="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 24 24">
+                    <svg className={`w-5 h-5 ${isAudley ? 'text-[#4d726d]' : 'text-amber-600'}`} fill="currentColor" viewBox="0 0 24 24">
                       <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                     </svg>
-                    <h3 className="text-lg font-bold text-amber-800">Seniors</h3>
+                    <h3 className={`text-lg font-bold ${isAudley ? 'text-[#4d726d]' : 'text-amber-800'}`}>Seniors</h3>
                   </div>
-                  <p className="text-sm text-amber-600 mb-4">{seniorData.agentCount} agents</p>
+                  <p className={`text-sm mb-4 ${isAudley ? 'text-[#4d726d]/80' : 'text-amber-600'}`}>{seniorData.agentCount} agents</p>
 
                   <div className="space-y-3">
                     <div>
@@ -587,7 +619,9 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-4 border-t border-amber-200 grid grid-cols-6 gap-2 text-center">
+                  <div className={`mt-4 pt-4 border-t grid grid-cols-6 gap-2 text-center ${
+                    isAudley ? 'border-[#4d726d]/20' : 'border-amber-200'
+                  }`}>
                     <div>
                       <div className="text-lg font-bold text-blue-600">{formatPercent(seniorData.tq)}</div>
                       <div className="text-xs text-gray-500">T&gt;Q</div>
@@ -601,7 +635,7 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                       <div className="text-xs text-gray-500">P&gt;Q</div>
                     </div>
                     <div>
-                      <div className="text-lg font-bold text-orange-600">{formatPercent(seniorData.hotPass)}</div>
+                      <div className={`text-lg font-bold ${isAudley ? 'text-[#4d726d]' : 'text-orange-600'}`}>{formatPercent(seniorData.hotPass)}</div>
                       <div className="text-xs text-gray-500">Hot Pass</div>
                     </div>
                     <div>
@@ -675,7 +709,7 @@ export const TeamComparison: React.FC<TeamComparisonProps> = ({ metrics, teams, 
                       <div className="text-xs text-gray-500">P&gt;Q</div>
                     </div>
                     <div>
-                      <div className="text-lg font-bold text-orange-600">{formatPercent(nonSeniorData.hotPass)}</div>
+                      <div className={`text-lg font-bold ${isAudley ? 'text-[#4d726d]' : 'text-orange-600'}`}>{formatPercent(nonSeniorData.hotPass)}</div>
                       <div className="text-xs text-gray-500">Hot Pass</div>
                     </div>
                     <div>

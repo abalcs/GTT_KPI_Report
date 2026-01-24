@@ -1,7 +1,207 @@
 @import "tailwindcss";
 
+/* Import Merriweather for Audley theme headings */
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap');
+
 html, body {
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============ Theme CSS Variables ============ */
+
+/* Default theme (dark) */
+:root, .theme-default {
+  --theme-bg-gradient-from: #0f172a;
+  --theme-bg-gradient-via: #1e293b;
+  --theme-bg-gradient-to: #0f172a;
+  --theme-bg-card: rgba(30, 41, 59, 0.5);
+  --theme-bg-card-solid: #1e293b;
+  --theme-bg-input: rgba(51, 65, 85, 0.5);
+  --theme-text-primary: #ffffff;
+  --theme-text-secondary: #94a3b8;
+  --theme-text-muted: #64748b;
+  --theme-border: rgba(51, 65, 85, 0.5);
+  --theme-border-solid: #334155;
+  --theme-accent: #2dd4bf;
+  --theme-accent-bg: #0d9488;
+  --theme-accent-hover: #0f766e;
+  --theme-header-font: 'Inter', system-ui, sans-serif;
+}
+
+/* Audley Travel theme - prominent blue and teal branding */
+.theme-audley {
+  /* Audley brand colors */
+  --audley-blue: #007bc7;
+  --audley-blue-dark: #005a94;
+  --audley-blue-light: #e6f3fb;
+  --audley-teal: #4d726d;
+  --audley-teal-dark: #3d5c58;
+  --audley-teal-light: #e8f0ef;
+  --audley-charcoal: #313131;
+
+  /* Background with subtle teal/blue tint */
+  --theme-bg-gradient-from: #f0f7fc;
+  --theme-bg-gradient-via: #ffffff;
+  --theme-bg-gradient-to: #e8f0ef;
+  --theme-bg-card: rgba(255, 255, 255, 0.95);
+  --theme-bg-card-solid: #ffffff;
+  --theme-bg-input: #f8fafc;
+
+  /* Text colors for good contrast */
+  --theme-text-primary: #4d726d;
+  --theme-text-secondary: #334155;
+  --theme-text-muted: #475569;
+
+  /* Borders with teal accent */
+  --theme-border: rgba(77, 114, 109, 0.15);
+  --theme-border-solid: #c7e2f5;
+
+  /* Teal and blue as accents */
+  --theme-accent: #4d726d;
+  --theme-accent-bg: #4d726d;
+  --theme-accent-hover: #3d5c58;
+  --theme-header-font: 'Merriweather', serif;
+}
+
+/* Audley theme specific styles */
+.theme-audley h1,
+.theme-audley h2,
+.theme-audley h3 {
+  font-family: var(--theme-header-font);
+  color: var(--audley-teal);
+}
+
+/* Audley teal/blue accent bar at top */
+.theme-audley .audley-header-bar {
+  background: linear-gradient(90deg, #007bc7, #4d726d, #007bc7);
+  height: 4px;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+}
+
+/* Card styling for Audley theme - teal border accent */
+.theme-audley .audley-card {
+  background: white;
+  border: 1px solid #c7e2f5;
+  border-left: 4px solid #007bc7;
+  box-shadow: 0 1px 3px rgba(0, 123, 199, 0.1);
+}
+
+/* Audley button styles */
+.theme-audley .audley-btn-primary {
+  background: linear-gradient(135deg, #007bc7, #0099e6);
+  color: white;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 123, 199, 0.3);
+}
+
+.theme-audley .audley-btn-primary:hover {
+  background: linear-gradient(135deg, #005a94, #007bc7);
+}
+
+/* Audley stats cards */
+.theme-audley .audley-stat-card {
+  background: linear-gradient(135deg, #e6f3fb, #f0f7fc);
+  border: 1px solid #c7e2f5;
+}
+
+/* Fix for dark chart tooltips in Audley theme */
+.theme-audley .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+}
+
+/* Smooth transition between themes */
+html {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ============ Theme-aware utility classes ============ */
+
+.theme-bg-primary {
+  background: linear-gradient(to bottom right, var(--theme-bg-gradient-from), var(--theme-bg-gradient-via), var(--theme-bg-gradient-to));
+}
+
+.theme-bg-card {
+  background-color: var(--theme-bg-card);
+}
+
+.theme-bg-card-solid {
+  background-color: var(--theme-bg-card-solid);
+}
+
+.theme-bg-input {
+  background-color: var(--theme-bg-input);
+}
+
+.theme-text-primary {
+  color: var(--theme-text-primary);
+}
+
+.theme-text-secondary {
+  color: var(--theme-text-secondary);
+}
+
+.theme-text-muted {
+  color: var(--theme-text-muted);
+}
+
+.theme-border {
+  border-color: var(--theme-border);
+}
+
+.theme-border-solid {
+  border-color: var(--theme-border-solid);
+}
+
+.theme-accent {
+  color: var(--theme-accent);
+}
+
+.theme-accent-bg {
+  background-color: var(--theme-accent-bg);
+}
+
+.theme-accent-bg:hover {
+  background-color: var(--theme-accent-hover);
+}
+
+/* Audley specific accent classes */
+.audley-blue {
+  color: #007bc7;
+}
+
+.bg-audley-blue {
+  background-color: #007bc7;
+}
+
+.border-audley-blue {
+  border-color: #007bc7;
+}
+
+.bg-audley-blue-light {
+  background-color: #e6f3fb;
+}
+
+/* Audley teal color classes */
+.audley-teal {
+  color: #4d726d;
+}
+
+.bg-audley-teal {
+  background-color: #4d726d;
+}
+
+.border-audley-teal {
+  border-color: #4d726d;
+}
+
+.bg-audley-teal-light {
+  background-color: #e8f0ef;
 }
