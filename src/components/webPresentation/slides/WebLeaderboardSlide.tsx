@@ -33,7 +33,11 @@ const LeaderboardColumn: React.FC<{
   isRate?: boolean;
   colors: SlideColors;
   columnDelay: number;
-}> = ({ title, entries, isRate, colors, columnDelay }) => {
+  revealedPositions: Set<number>;
+  onReveal: (position: number) => void;
+}> = ({ title, entries, isRate, colors, columnDelay, revealedPositions, onReveal }) => {
+  const medals = ['🥇', '🥈', '🥉'];
+
   return (
     <div className="flex flex-col h-full">
       <motion.h3
@@ -46,43 +50,91 @@ const LeaderboardColumn: React.FC<{
         {title}
       </motion.h3>
       <div className="flex-1 flex flex-col justify-start gap-1.5">
-        {entries.slice(0, 10).map((entry, i) => (
-          <motion.div
-            key={entry.agentName}
-            className="flex items-center justify-between py-2 px-2.5 rounded-md"
-            style={{
-              backgroundColor: entry.isOnSelectedTeam
-                ? `#${colors.myTeamHighlight}`
-                : 'transparent',
-            }}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: columnDelay + 0.1 + i * 0.04 }}
-          >
-            <span
-              className="text-sm truncate flex-1"
-              style={{
-                color: entry.isOnSelectedTeam ? `#${colors.text}` : `#${colors.textLight}`,
-                fontWeight: entry.isOnSelectedTeam ? 600 : 400,
-              }}
-            >
-              {i + 1}. {entry.agentName}
-              {entry.isSenior && (
-                <span className="ml-1 text-amber-400" title="Senior">
-                  ⚜
+        {entries.slice(0, 10).map((entry, i) => {
+          const isTop3 = i < 3;
+          const isRevealed = revealedPositions.has(i);
+          const shouldHide = isTop3 && entry.isOnSelectedTeam && !isRevealed;
+
+          // Hidden state - only for team members in top 3
+          if (shouldHide) {
+            return (
+              <motion.div
+                key={`hidden-${i}`}
+                className="flex items-center justify-between py-2 px-2.5 rounded-md cursor-pointer group"
+                style={{
+                  backgroundColor: `#${colors.myTeamHighlight}`,
+                  border: `1px dashed #${colors.accent}60`,
+                }}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3, delay: columnDelay + 0.1 + i * 0.04 }}
+                onClick={() => onReveal(i)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <span
+                  className="text-sm flex items-center gap-2"
+                  style={{ color: `#${colors.text}` }}
+                >
+                  <span className="text-base">{medals[i]}</span>
+                  <span className="italic opacity-70">Team member - click to reveal!</span>
                 </span>
-              )}
-            </span>
-            <span
-              className="text-sm font-semibold ml-3 tabular-nums"
+                <span
+                  className="text-lg group-hover:animate-pulse"
+                  style={{ color: `#${colors.accent}` }}
+                >
+                  ?
+                </span>
+              </motion.div>
+            );
+          }
+
+          // Normal display state
+          const wasJustRevealed = isTop3 && entry.isOnSelectedTeam && isRevealed;
+
+          return (
+            <motion.div
+              key={entry.agentName}
+              className="flex items-center justify-between py-2 px-2.5 rounded-md"
               style={{
-                color: entry.isOnSelectedTeam ? `#${colors.text}` : `#${colors.textLight}`,
+                backgroundColor: entry.isOnSelectedTeam
+                  ? `#${colors.myTeamHighlight}`
+                  : 'transparent',
               }}
+              initial={wasJustRevealed ? { opacity: 0, scale: 0.8, rotateX: -90 } : { opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0, scale: 1, rotateX: 0 }}
+              transition={wasJustRevealed
+                ? { duration: 0.5, type: 'spring', stiffness: 200, damping: 15 }
+                : { duration: 0.3, delay: columnDelay + 0.1 + i * 0.04 }
+              }
             >
-              {isRate ? `${entry.value.toFixed(0)}%` : entry.value}
-            </span>
-          </motion.div>
-        ))}
+              <span
+                className="text-sm truncate flex-1 flex items-center gap-1"
+                style={{
+                  color: entry.isOnSelectedTeam ? `#${colors.text}` : `#${colors.textLight}`,
+                  fontWeight: entry.isOnSelectedTeam ? 600 : 400,
+                }}
+              >
+                {isTop3 && <span className="text-base mr-1">{medals[i]}</span>}
+                {!isTop3 && `${i + 1}. `}
+                {entry.agentName}
+                {entry.isSenior && (
+                  <span className="ml-1 text-amber-400" title="Senior">
+                    ⚜
+                  </span>
+                )}
+              </span>
+              <span
+                className="text-sm font-semibold ml-3 tabular-nums"
+                style={{
+                  color: entry.isOnSelectedTeam ? `#${colors.text}` : `#${colors.textLight}`,
+                }}
+              >
+                {isRate ? `${entry.value.toFixed(0)}%` : entry.value}
+              </span>
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );
@@ -99,6 +151,23 @@ export const WebLeaderboardSlide: React.FC<WebLeaderboardSlideProps> = ({
   colors,
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
+
+  // Track revealed positions for each column (top 3 are hidden by default)
+  const [revealedByColumn, setRevealedByColumn] = useState<Record<string, Set<number>>>({
+    passthroughs: new Set(),
+    quotes: new Set(),
+    bookings: new Set(),
+    tqRate: new Set(),
+    tpRate: new Set(),
+    hotPassRate: new Set(),
+  });
+
+  const handleReveal = (column: string, position: number) => {
+    setRevealedByColumn(prev => ({
+      ...prev,
+      [column]: new Set([...prev[column], position]),
+    }));
+  };
 
   // Pick consistent image based on data
   const imageIndex = byPassthroughs.length % MOUNTAIN_IMAGES.length;
@@ -196,18 +265,24 @@ export const WebLeaderboardSlide: React.FC<WebLeaderboardSlideProps> = ({
           entries={byPassthroughs}
           colors={colors}
           columnDelay={0.3}
+          revealedPositions={revealedByColumn.passthroughs}
+          onReveal={(pos) => handleReveal('passthroughs', pos)}
         />
         <LeaderboardColumn
           title="Quotes"
           entries={byQuotes}
           colors={colors}
           columnDelay={0.35}
+          revealedPositions={revealedByColumn.quotes}
+          onReveal={(pos) => handleReveal('quotes', pos)}
         />
         <LeaderboardColumn
           title="Bookings"
           entries={byBookings}
           colors={colors}
           columnDelay={0.4}
+          revealedPositions={revealedByColumn.bookings}
+          onReveal={(pos) => handleReveal('bookings', pos)}
         />
         <LeaderboardColumn
           title="T→Q %"
@@ -215,6 +290,8 @@ export const WebLeaderboardSlide: React.FC<WebLeaderboardSlideProps> = ({
           isRate
           colors={colors}
           columnDelay={0.45}
+          revealedPositions={revealedByColumn.tqRate}
+          onReveal={(pos) => handleReveal('tqRate', pos)}
         />
         <LeaderboardColumn
           title="T→P %"
@@ -222,6 +299,8 @@ export const WebLeaderboardSlide: React.FC<WebLeaderboardSlideProps> = ({
           isRate
           colors={colors}
           columnDelay={0.5}
+          revealedPositions={revealedByColumn.tpRate}
+          onReveal={(pos) => handleReveal('tpRate', pos)}
         />
         <LeaderboardColumn
           title="Hot Pass %"
@@ -229,6 +308,8 @@ export const WebLeaderboardSlide: React.FC<WebLeaderboardSlideProps> = ({
           isRate
           colors={colors}
           columnDelay={0.55}
+          revealedPositions={revealedByColumn.hotPassRate}
+          onReveal={(pos) => handleReveal('hotPassRate', pos)}
         />
       </div>
     </div>
