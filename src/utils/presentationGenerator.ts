@@ -1,18 +1,32 @@
 import PptxGenJS from 'pptxgenjs';
 import type { Metrics, Team } from '../types';
 
-export type ThemeStyle = 'dark-modern' | 'light-clean' | 'vibrant-energy' | 'corporate-blue' | 'warm-sunset';
+export type ThemeStyle = 'audley-brand' | 'dark-modern' | 'light-clean' | 'vibrant-energy' | 'corporate-blue' | 'warm-sunset';
+
+export interface TopDestination {
+  destination: string;
+  count: number;
+}
+
+export interface AgentTopDestination {
+  agentName: string;
+  destination: string;
+  count: number;
+}
 
 export interface PresentationConfig {
   teamName: string;
-  weeklyGoalPassthroughsPerPerson: number;
-  weeklyGoalQuotesPerPerson: number;
+  selectedTeamId: string | null;
+  monthlyGoalPassthroughs: number;
+  monthlyGoalQuotes: number;
   cascades: string[];
   meetingDate: Date;
   theme: ThemeStyle;
+  topDestinations?: TopDestination[];
+  agentTopDestinations?: AgentTopDestination[];
 }
 
-interface SlideColors {
+export interface SlideColors {
   primary: string;
   secondary: string;
   accent: string;
@@ -26,6 +40,11 @@ interface SlideColors {
 }
 
 export const THEME_INFO: Record<ThemeStyle, { name: string; description: string; preview: string[] }> = {
+  'audley-brand': {
+    name: 'Audley',
+    description: 'Official Audley brand colors - teal and blue',
+    preview: ['FFFFFF', '4D726D', '007BC7'],
+  },
   'dark-modern': {
     name: 'Dark & Modern',
     description: 'Sleek dark theme with indigo and violet accents',
@@ -53,7 +72,19 @@ export const THEME_INFO: Record<ThemeStyle, { name: string; description: string;
   },
 };
 
-const THEMES: Record<ThemeStyle, SlideColors> = {
+export const THEMES: Record<ThemeStyle, SlideColors> = {
+  'audley-brand': {
+    primary: '4D726D',      // Audley Teal
+    secondary: '007BC7',    // Audley Blue
+    accent: '5D8A84',       // Lighter teal
+    background: 'FFFFFF',   // Clean white
+    cardBg: 'F8FAFB',       // Very light gray
+    text: '1E293B',         // Slate 800
+    textLight: '64748B',    // Slate 500
+    success: '059669',      // Emerald 600
+    warning: 'D97706',      // Amber 600
+    myTeamHighlight: 'E0F2F1', // Light teal highlight
+  },
   'dark-modern': {
     primary: '4F46E5',      // Indigo
     secondary: '7C3AED',    // Violet
@@ -116,7 +147,7 @@ const THEMES: Record<ThemeStyle, SlideColors> = {
   },
 };
 
-const formatDate = (date: Date): string => {
+export const formatDate = (date: Date): string => {
   return date.toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -125,11 +156,11 @@ const formatDate = (date: Date): string => {
   });
 };
 
-const formatMonth = (date: Date): string => {
+export const formatMonth = (date: Date): string => {
   return date.toLocaleDateString('en-US', { month: 'long' });
 };
 
-const getWeekNumber = (date: Date): number => {
+export const getWeekNumber = (date: Date): number => {
   const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
   const dayOfMonth = date.getDate();
   const dayOfWeek = startOfMonth.getDay();
@@ -252,32 +283,34 @@ export const generatePresentation = async (
   pptx.defineLayout({ name: 'CUSTOM', width: 10, height: 5.625 });
   pptx.layout = 'CUSTOM';
 
-  // Find "My Team"
-  const myTeam = teams.find(t => t.name.toLowerCase() === 'my team');
-  const myTeamMembers = myTeam?.agentNames || [];
-  const myTeamCount = myTeamMembers.length;
+  // Find selected team (by ID or fall back to "My Team" for backwards compatibility)
+  const selectedTeam = config.selectedTeamId
+    ? teams.find(t => t.id === config.selectedTeamId)
+    : teams.find(t => t.name.toLowerCase() === 'my team');
+  const selectedTeamMembers = selectedTeam?.agentNames || [];
+  const selectedTeamName = selectedTeam?.name || 'My Team';
 
-  // Helper to check if agent is on My Team
-  const isMyTeam = (agentName: string) =>
-    myTeamMembers.some(m => m.toLowerCase() === agentName.toLowerCase());
+  // Helper to check if agent is on the selected team - trim and normalize names
+  const isOnSelectedTeam = (agentName: string) =>
+    selectedTeamMembers.some(m => m.trim().toLowerCase() === agentName.trim().toLowerCase());
 
-  // Helper to check if agent is a senior
+  // Helper to check if agent is a senior - trim and normalize names
   const isSenior = (name: string) =>
-    seniors.some(s => s.toLowerCase() === name.toLowerCase());
+    seniors.some(s => s.trim().toLowerCase() === name.trim().toLowerCase());
 
-  // Filter metrics to My Team only
-  const myTeamMetrics = metrics.filter(m => isMyTeam(m.agentName));
+  // Filter metrics to selected team only
+  const selectedTeamMetrics = metrics.filter(m => isOnSelectedTeam(m.agentName));
 
   // Calculate metrics for My Team only
-  const totalPassthroughs = myTeamMetrics.reduce((sum, m) => sum + m.passthroughs, 0);
-  const totalQuotes = myTeamMetrics.reduce((sum, m) => sum + m.quotes, 0);
-  const totalTrips = myTeamMetrics.reduce((sum, m) => sum + m.trips, 0);
-  const totalHotPasses = myTeamMetrics.reduce((sum, m) => sum + m.hotPasses, 0);
-  const totalBookings = myTeamMetrics.reduce((sum, m) => sum + m.bookings, 0);
+  const totalPassthroughs = selectedTeamMetrics.reduce((sum, m) => sum + m.passthroughs, 0);
+  const totalQuotes = selectedTeamMetrics.reduce((sum, m) => sum + m.quotes, 0);
+  const totalTrips = selectedTeamMetrics.reduce((sum, m) => sum + m.trips, 0);
+  const totalHotPasses = selectedTeamMetrics.reduce((sum, m) => sum + m.hotPasses, 0);
+  const totalBookings = selectedTeamMetrics.reduce((sum, m) => sum + m.bookings, 0);
 
-  // Calculate goals based on team size
-  const weeklyGoalPassthroughs = config.weeklyGoalPassthroughsPerPerson * myTeamCount;
-  const weeklyGoalQuotes = config.weeklyGoalQuotesPerPerson * myTeamCount;
+  // Monthly goals from config
+  const monthlyGoalPassthroughs = config.monthlyGoalPassthroughs;
+  const monthlyGoalQuotes = config.monthlyGoalQuotes;
 
   const avgHotPassRate = totalPassthroughs > 0
     ? (totalHotPasses / totalPassthroughs) * 100
@@ -286,10 +319,9 @@ export const generatePresentation = async (
   const avgTPRate = totalTrips > 0 ? (totalPassthroughs / totalTrips) * 100 : 0;
 
   // Sort My Team metrics for top performers
-  const byPassthroughs = [...myTeamMetrics].sort((a, b) => b.passthroughs - a.passthroughs);
-  const byQuotes = [...myTeamMetrics].sort((a, b) => b.quotes - a.quotes);
-  const byHotPassRate = [...myTeamMetrics]
-    .filter(m => m.passthroughs >= 5) // Minimum threshold
+  const byPassthroughs = [...selectedTeamMetrics].sort((a, b) => b.passthroughs - a.passthroughs);
+  const byQuotes = [...selectedTeamMetrics].sort((a, b) => b.quotes - a.quotes);
+  const byHotPassRate = [...selectedTeamMetrics]
     .sort((a, b) => b.hotPassRate - a.hotPassRate);
 
   // For leaderboard - use ALL metrics but highlight My Team
@@ -334,30 +366,34 @@ export const generatePresentation = async (
     color: COLORS.textLight,
   });
 
-  // ===== SLIDE 2: Weekly Goals =====
+  // ===== SLIDE 2: Progress =====
   const slide2 = pptx.addSlide();
   addSlideBackground(slide2, COLORS);
   addDecorativeElements(slide2, COLORS, 'content');
 
-  slide2.addText('WEEKLY GOALS', {
+  slide2.addText('PROGRESS', {
     x: 0.5, y: 0.3, w: 9, h: 0.6,
     fontSize: 32,
     fontFace: 'Arial',
     bold: true,
     color: COLORS.text,
   });
-  addHeaderAccent(slide2, COLORS, 0.5, 0.82, 2.5);
+  addHeaderAccent(slide2, COLORS, 0.5, 0.82, 2);
 
-  slide2.addText(`Team of ${myTeamCount}`, {
+  slide2.addText(config.teamName, {
     x: 0.5, y: 0.85, w: 9, h: 0.3,
     fontSize: 14,
     fontFace: 'Arial',
     color: COLORS.textLight,
   });
 
+  // Calculate progress percentages
+  const passthroughsProgress = Math.min((totalPassthroughs / monthlyGoalPassthroughs) * 100, 100);
+  const quotesProgress = Math.min((totalQuotes / monthlyGoalQuotes) * 100, 100);
+
   // Passthroughs card
   slide2.addShape('roundRect', {
-    x: 0.5, y: 1.3, w: 4.3, h: 3,
+    x: 0.5, y: 1.3, w: 4.3, h: 3.2,
     fill: { type: 'solid', color: COLORS.cardBg },
     line: { color: COLORS.primary, width: 2 },
     rectRadius: 0.15,
@@ -372,30 +408,47 @@ export const generatePresentation = async (
   });
 
   slide2.addText(`${totalPassthroughs}`, {
-    x: 0.7, y: 2.1, w: 3.9, h: 1,
-    fontSize: 56,
+    x: 0.7, y: 1.9, w: 3.9, h: 0.9,
+    fontSize: 52,
     fontFace: 'Arial',
-    color: totalPassthroughs >= weeklyGoalPassthroughs ? COLORS.success : COLORS.text,
+    color: totalPassthroughs >= monthlyGoalPassthroughs ? COLORS.success : COLORS.text,
     bold: true,
   });
 
-  slide2.addText(`Goal: ${weeklyGoalPassthroughs}`, {
-    x: 0.7, y: 3.2, w: 3.9, h: 0.4,
-    fontSize: 18,
+  slide2.addText(`Monthly Goal: ${monthlyGoalPassthroughs}`, {
+    x: 0.7, y: 2.85, w: 3.9, h: 0.4,
+    fontSize: 16,
     fontFace: 'Arial',
     color: COLORS.accent,
   });
 
-  slide2.addText(`(${config.weeklyGoalPassthroughsPerPerson} per person)`, {
-    x: 0.7, y: 3.6, w: 3.9, h: 0.3,
-    fontSize: 12,
+  // Progress bar background
+  slide2.addShape('roundRect', {
+    x: 0.7, y: 3.35, w: 3.9, h: 0.25,
+    fill: { type: 'solid', color: '334155' },
+    line: { width: 0 },
+    rectRadius: 0.1,
+  });
+
+  // Progress bar fill
+  slide2.addShape('roundRect', {
+    x: 0.7, y: 3.35, w: 3.9 * (passthroughsProgress / 100), h: 0.25,
+    fill: { type: 'solid', color: totalPassthroughs >= monthlyGoalPassthroughs ? COLORS.success : COLORS.primary },
+    line: { width: 0 },
+    rectRadius: 0.1,
+  });
+
+  slide2.addText(`${passthroughsProgress.toFixed(0)}%`, {
+    x: 0.7, y: 3.7, w: 3.9, h: 0.3,
+    fontSize: 14,
     fontFace: 'Arial',
     color: COLORS.textLight,
+    align: 'center',
   });
 
   // Quotes card
   slide2.addShape('roundRect', {
-    x: 5.2, y: 1.3, w: 4.3, h: 3,
+    x: 5.2, y: 1.3, w: 4.3, h: 3.2,
     fill: { type: 'solid', color: COLORS.cardBg },
     line: { color: COLORS.secondary, width: 2 },
     rectRadius: 0.15,
@@ -410,25 +463,42 @@ export const generatePresentation = async (
   });
 
   slide2.addText(`${totalQuotes}`, {
-    x: 5.4, y: 2.1, w: 3.9, h: 1,
-    fontSize: 56,
+    x: 5.4, y: 1.9, w: 3.9, h: 0.9,
+    fontSize: 52,
     fontFace: 'Arial',
-    color: totalQuotes >= weeklyGoalQuotes ? COLORS.success : COLORS.text,
+    color: totalQuotes >= monthlyGoalQuotes ? COLORS.success : COLORS.text,
     bold: true,
   });
 
-  slide2.addText(`Goal: ${weeklyGoalQuotes}`, {
-    x: 5.4, y: 3.2, w: 3.9, h: 0.4,
-    fontSize: 18,
+  slide2.addText(`Monthly Goal: ${monthlyGoalQuotes}`, {
+    x: 5.4, y: 2.85, w: 3.9, h: 0.4,
+    fontSize: 16,
     fontFace: 'Arial',
     color: COLORS.accent,
   });
 
-  slide2.addText(`(${config.weeklyGoalQuotesPerPerson} per person)`, {
-    x: 5.4, y: 3.6, w: 3.9, h: 0.3,
-    fontSize: 12,
+  // Progress bar background
+  slide2.addShape('roundRect', {
+    x: 5.4, y: 3.35, w: 3.9, h: 0.25,
+    fill: { type: 'solid', color: '334155' },
+    line: { width: 0 },
+    rectRadius: 0.1,
+  });
+
+  // Progress bar fill
+  slide2.addShape('roundRect', {
+    x: 5.4, y: 3.35, w: 3.9 * (quotesProgress / 100), h: 0.25,
+    fill: { type: 'solid', color: totalQuotes >= monthlyGoalQuotes ? COLORS.success : COLORS.secondary },
+    line: { width: 0 },
+    rectRadius: 0.1,
+  });
+
+  slide2.addText(`${quotesProgress.toFixed(0)}%`, {
+    x: 5.4, y: 3.7, w: 3.9, h: 0.3,
+    fontSize: 14,
     fontFace: 'Arial',
     color: COLORS.textLight,
+    align: 'center',
   });
 
   // ===== SLIDE 3: Top Performers - My Team =====
@@ -445,7 +515,7 @@ export const generatePresentation = async (
   });
   addHeaderAccent(slide3, COLORS, 0.5, 0.68, 2.8);
 
-  slide3.addText('My Team', {
+  slide3.addText(selectedTeamName, {
     x: 0.5, y: 0.7, w: 9, h: 0.3,
     fontSize: 14,
     fontFace: 'Arial',
@@ -603,7 +673,7 @@ export const generatePresentation = async (
   });
   addHeaderAccent(slide5, COLORS, 0.5, 0.72, 2.2);
 
-  slide5.addText('My Team', {
+  slide5.addText(selectedTeamName, {
     x: 0.5, y: 0.75, w: 6, h: 0.3,
     fontSize: 14,
     fontFace: 'Arial',
@@ -677,21 +747,103 @@ export const generatePresentation = async (
     align: 'center',
   });
 
-  // ===== SLIDE 6: Leaderboard (All agents, My Team highlighted) =====
+  // ===== SLIDE 6: Top Destinations =====
   const slide6 = pptx.addSlide();
   addSlideBackground(slide6, COLORS);
   addDecorativeElements(slide6, COLORS, 'content');
 
-  slide6.addText('LEADERBOARD', {
+  slide6.addText('TOP DESTINATIONS', {
     x: 0.5, y: 0.25, w: 9, h: 0.5,
     fontSize: 32,
     fontFace: 'Arial',
     bold: true,
     color: COLORS.text,
   });
-  addHeaderAccent(slide6, COLORS, 0.5, 0.72, 2.4);
+  addHeaderAccent(slide6, COLORS, 0.5, 0.72, 2.8);
 
-  slide6.addText('Department Wide', {
+  slide6.addText('By Passthroughs', {
+    x: 0.5, y: 0.75, w: 4, h: 0.3,
+    fontSize: 14,
+    fontFace: 'Arial',
+    color: COLORS.textLight,
+  });
+
+  const destinations = config.topDestinations || [];
+  const maxDestCount = destinations.length > 0 ? destinations[0].count : 1;
+
+  if (destinations.length > 0) {
+    destinations.slice(0, 5).forEach((dest, i) => {
+      const barWidth = (dest.count / maxDestCount) * 7;
+      const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+      const yPos = 1.2 + (i * 0.8);
+
+      // Background bar
+      slide6.addShape('roundRect', {
+        x: 1.5, y: yPos, w: 7.5, h: 0.65,
+        fill: { type: 'solid', color: COLORS.cardBg },
+        line: { width: 0 },
+        rectRadius: 0.1,
+      });
+
+      // Fill bar
+      slide6.addShape('roundRect', {
+        x: 1.5, y: yPos, w: barWidth, h: 0.65,
+        fill: { type: 'solid', color: i === 0 ? COLORS.primary : i === 1 ? COLORS.secondary : COLORS.accent },
+        line: { width: 0 },
+        rectRadius: 0.1,
+      });
+
+      // Medal
+      slide6.addText(medals[i], {
+        x: 0.5, y: yPos + 0.05, w: 0.8, h: 0.5,
+        fontSize: 20,
+        fontFace: 'Arial',
+      });
+
+      // Destination name
+      slide6.addText(dest.destination, {
+        x: 1.7, y: yPos + 0.1, w: 5, h: 0.45,
+        fontSize: 14,
+        fontFace: 'Arial',
+        color: COLORS.text,
+        bold: true,
+      });
+
+      // Count
+      slide6.addText(`${dest.count}`, {
+        x: 7.5, y: yPos + 0.1, w: 1.3, h: 0.45,
+        fontSize: 16,
+        fontFace: 'Arial',
+        color: COLORS.primary,
+        bold: true,
+        align: 'right',
+      });
+    });
+  } else {
+    slide6.addText('No destination data available', {
+      x: 0.5, y: 2.5, w: 9, h: 0.5,
+      fontSize: 16,
+      fontFace: 'Arial',
+      color: COLORS.textLight,
+      align: 'center',
+    });
+  }
+
+  // ===== SLIDE 7: Leaderboard (All agents, My Team highlighted) =====
+  const slide7 = pptx.addSlide();
+  addSlideBackground(slide7, COLORS);
+  addDecorativeElements(slide7, COLORS, 'content');
+
+  slide7.addText('LEADERBOARD', {
+    x: 0.5, y: 0.25, w: 9, h: 0.5,
+    fontSize: 32,
+    fontFace: 'Arial',
+    bold: true,
+    color: COLORS.text,
+  });
+  addHeaderAccent(slide7, COLORS, 0.5, 0.72, 2.4);
+
+  slide7.addText('Department Wide', {
     x: 0.5, y: 0.75, w: 4, h: 0.3,
     fontSize: 14,
     fontFace: 'Arial',
@@ -699,12 +851,12 @@ export const generatePresentation = async (
   });
 
   // Legend for My Team highlight
-  slide6.addShape('rect', {
+  slide7.addShape('rect', {
     x: 7.5, y: 0.7, w: 0.3, h: 0.3,
     fill: { type: 'solid', color: COLORS.myTeamHighlight },
     line: { width: 0 },
   });
-  slide6.addText('= My Team', {
+  slide7.addText(`= ${selectedTeamName}`, {
     x: 7.85, y: 0.7, w: 1.5, h: 0.3,
     fontSize: 11,
     fontFace: 'Arial',
@@ -719,7 +871,7 @@ export const generatePresentation = async (
   ];
 
   columns.forEach(col => {
-    slide6.addText(col.label, {
+    slide7.addText(col.label, {
       x: col.x, y: 1.1, w: 2.8, h: 0.4,
       fontSize: 14,
       fontFace: 'Arial',
@@ -729,7 +881,7 @@ export const generatePresentation = async (
 
     col.data.slice(0, 8).forEach((agent, i) => {
       const seniorBadge = getSeniorBadge(isSenior(agent.agentName));
-      const isOnMyTeam = isMyTeam(agent.agentName);
+      const isOnMyTeam = isOnSelectedTeam(agent.agentName);
       const value = col.isRate
         ? `${agent.hotPassRate.toFixed(0)}%`
         : agent[col.valueKey];
@@ -738,7 +890,7 @@ export const generatePresentation = async (
 
       // Highlight background for My Team members
       if (isOnMyTeam) {
-        slide6.addShape('roundRect', {
+        slide7.addShape('roundRect', {
           x: col.x - 0.05, y: yPos - 0.05, w: 2.9, h: 0.4,
           fill: { type: 'solid', color: COLORS.myTeamHighlight },
           line: { width: 0 },
@@ -746,7 +898,7 @@ export const generatePresentation = async (
         });
       }
 
-      slide6.addText(`${i + 1}. ${agent.agentName}${seniorBadge}`, {
+      slide7.addText(`${i + 1}. ${agent.agentName}${seniorBadge}`, {
         x: col.x, y: yPos, w: 2.2, h: 0.35,
         fontSize: 11,
         fontFace: 'Arial',
@@ -754,7 +906,7 @@ export const generatePresentation = async (
         bold: isOnMyTeam,
       });
 
-      slide6.addText(`${value}`, {
+      slide7.addText(`${value}`, {
         x: col.x + 2.2, y: yPos, w: 0.6, h: 0.35,
         fontSize: 11,
         fontFace: 'Arial',
@@ -765,30 +917,30 @@ export const generatePresentation = async (
     });
   });
 
-  // ===== SLIDE 7: Cascades =====
-  const slide7 = pptx.addSlide();
-  addSlideBackground(slide7, COLORS);
-  addDecorativeElements(slide7, COLORS, 'content');
+  // ===== SLIDE 8: Cascades =====
+  const slide8 = pptx.addSlide();
+  addSlideBackground(slide8, COLORS);
+  addDecorativeElements(slide8, COLORS, 'content');
 
-  slide7.addText('CASCADES & UPDATES', {
+  slide8.addText('CASCADES & UPDATES', {
     x: 0.5, y: 0.3, w: 9, h: 0.5,
     fontSize: 32,
     fontFace: 'Arial',
     bold: true,
     color: COLORS.text,
   });
-  addHeaderAccent(slide7, COLORS, 0.5, 0.78, 3.5);
+  addHeaderAccent(slide8, COLORS, 0.5, 0.78, 3.5);
 
   if (config.cascades.length > 0) {
     config.cascades.forEach((cascade, i) => {
-      slide7.addShape('roundRect', {
+      slide8.addShape('roundRect', {
         x: 0.5, y: 1 + (i * 0.7), w: 9, h: 0.6,
         fill: { type: 'solid', color: COLORS.cardBg },
         line: { color: '334155', width: 1 },
         rectRadius: 0.1,
       });
 
-      slide7.addText(`→  ${cascade}`, {
+      slide8.addText(`→  ${cascade}`, {
         x: 0.7, y: 1.1 + (i * 0.7), w: 8.6, h: 0.4,
         fontSize: 14,
         fontFace: 'Arial',
@@ -796,7 +948,7 @@ export const generatePresentation = async (
       });
     });
   } else {
-    slide7.addText('No updates for this week', {
+    slide8.addText('No updates for this week', {
       x: 0.5, y: 2, w: 9, h: 0.5,
       fontSize: 16,
       fontFace: 'Arial',
@@ -805,12 +957,12 @@ export const generatePresentation = async (
     });
   }
 
-  // ===== SLIDE 8: Closing =====
-  const slide8 = pptx.addSlide();
-  addSlideBackground(slide8, COLORS);
-  addDecorativeElements(slide8, COLORS, 'closing');
+  // ===== SLIDE 9: Closing =====
+  const slide9 = pptx.addSlide();
+  addSlideBackground(slide9, COLORS);
+  addDecorativeElements(slide9, COLORS, 'closing');
 
-  slide8.addText("LET'S CRUSH IT!", {
+  slide9.addText("LET'S CRUSH IT!", {
     x: 0.5, y: 1.8, w: 9, h: 1,
     fontSize: 48,
     fontFace: 'Arial',
@@ -819,7 +971,7 @@ export const generatePresentation = async (
     align: 'center',
   });
 
-  slide8.addText('Questions? Discussion? Ideas?', {
+  slide9.addText('Questions? Discussion? Ideas?', {
     x: 0.5, y: 3, w: 9, h: 0.5,
     fontSize: 20,
     fontFace: 'Arial',
@@ -827,7 +979,7 @@ export const generatePresentation = async (
     align: 'center',
   });
 
-  slide8.addText(config.teamName, {
+  slide9.addText(config.teamName, {
     x: 0.5, y: 4.5, w: 9, h: 0.4,
     fontSize: 14,
     fontFace: 'Arial',
@@ -842,9 +994,12 @@ export const generatePresentation = async (
 
 export const getDefaultConfig = (): PresentationConfig => ({
   teamName: 'Team GTT',
-  weeklyGoalPassthroughsPerPerson: 11,  // 88 / 8 people
-  weeklyGoalQuotesPerPerson: 7,          // 56 / 8 people
+  selectedTeamId: null,
+  monthlyGoalPassthroughs: 350,
+  monthlyGoalQuotes: 220,
   cascades: [],
   meetingDate: new Date(),
   theme: 'dark-modern',
+  topDestinations: [],
+  agentTopDestinations: [],
 });

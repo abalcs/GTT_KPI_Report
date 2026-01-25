@@ -456,7 +456,7 @@ Global Travel Hub
             <ThemeToggle />
             {metrics.length > 0 ? (
               <div className="flex items-center gap-2">
-                <PresentationGenerator metrics={metrics} seniors={seniors} teams={teams} />
+                <PresentationGenerator metrics={metrics} seniors={seniors} teams={teams} rawData={rawParsedData} records={records} startDate={startDate} endDate={endDate} />
                 <button
                   onClick={handleClearData}
                   className={`px-3 py-2 text-sm rounded-lg transition-all cursor-pointer active:scale-95 ${
